@@ -1,0 +1,23 @@
+strategy:
+  KIND: MratZscoreStrategy
+  symbol: ETH/USDT
+  fast_ma_length: 9
+  slow_ma_length: 51
+  filter_ma_length: 100
+  z_score_threshold: 2
+  timeframe: 1h
+  database_service:
+    KIND: DynamoDB
+  exchange_service:
+    KIND: Bitget
+  notifier_service:
+    KIND: Telegram
+    chat_id: 5609154988
+  trading_params:
+    equity_trade_pct: 1
+    leverage: 1
+    stop_loss_pct: 6
+    take_profit_pct: 10
+    max_simultaneous_positions: 1
+    order_type: market
+    margin_mode: isolated

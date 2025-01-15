@@ -1,0 +1,74 @@
+name: Build & Publish Prod
+
+on:
+  release:
+    types:
+      - edited
+      - published
+
+jobs:
+  build-and-publish:
+    name: Build and Publish Wheel & Docker Image
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: "ap-northeast-1"
+      IMAGE_NAME: "otomai-bot"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: "2.0.0"
+
+      - name: Build wheel file
+        run: |
+          poetry build -f wheel
+          ls dist/
+
+      - name: Upload wheel to AWS S3
+        uses: jakejarvis/s3-sync-action@v0.5.2
+        with:
+          args: --acl public-read
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_S3_BUCKET: "prod-otomai-bot-wheel-files"
+          SOURCE_DIR: "dist/"
+          DEST_DIR: "releases/"
+
+      - name: Build Docker image
+        run: |
+          WHEEL_FILE=$(ls dist/*.whl)
+          docker build --build-arg WHEEL_FILE=$WHEEL_FILE -t ${{ env.IMAGE_NAME }}:${{ github.ref_name }} .
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Tag and Push Docker image to ECR
+        run: |
+          ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+          docker tag ${{ env.IMAGE_NAME }}:${{ github.ref_name }} $ECR_REGISTRY/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+          docker push $ECR_REGISTRY/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+
+      # ✅ Step 8: Connect to EC2 and deploy the bot
+      - name: Deploy to EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no -i "${{ secrets.EC2_KEY }}" ec2-user@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
+          ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+
+          # Pull the latest image from ECR
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+          docker pull $ECR_REGISTRY/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+
+          # Stop and remove any existing container
+          docker stop my-bot || true
+          docker rm my-bot || true
+
+          # Run the Docker container
+          docker run -d --name my-bot --env-file /home/ec2-user/.env $ECR_REGISTRY/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+          EOF

@@ -1,0 +1,41 @@
+[project]
+name = "otomai"
+version = "0.1.0"
+description = "A trading bot using ccxt and strategies."
+authors = [
+    {name = "thomasclem", email = "thomas_cl@gmx.fr"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+
+[tool.poetry.scripts]
+otomai = "src.scripts:main"
+
+[tool.poetry.dependencies]
+# Main Dependencies
+python = ">=3.11"
+ccxt = ">=4.4.35,<5.0.0"  # Cryptocurrency trading library
+pandas = ">=2.2.3,<3.0.0"  # Data analysis library
+ta = ">=0.11.0,<0.12.0"  # Technical analysis library
+python-telegram-bot = ">=21.8,<22.0"  # Telegram bot integration
+python-dotenv = ">=1.0.1,<2.0.0"  # Environment variable loader
+omegaconf = "^2.3.0"
+cloudpathlib = "^0.20.0"
+pydantic = "^2.10.2"
+pydantic-settings = "^2.6.1"
+boto3 = "^1.35.72"
+pandera = "^0.21.1"
+typing-extensions = "^4.12.2"
+
+[tool.poetry.group.test.dependencies]
+mypy-boto3-s3 = "^1.35.93"
+pytest = "^8.3.4"
+pytest-asyncio = "^0.25.2"
+
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^4.0.1"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

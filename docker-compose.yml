@@ -1,0 +1,18 @@
+version: "3.8"
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      # Set the ENV variable dynamically, defaulting to 'development'
+      ENV: ${ENV:-development}
+      # Pass the strategy file dynamically based on the ENV variable
+      STRATEGY: mrat
+    env_file:
+      - env/base.env
+      - env/${ENV:-development}.env
+    volumes:
+      - ./strategies:/app/strategies
+      - ./env:/app/env
+    command: ["--files", "strategies/{ENV}/${STRATEGY}.yml"]

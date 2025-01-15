@@ -1,0 +1,15 @@
+env/
+venv/
+.idea/
+*/.idea
+*.sqlite
+*/__pycache__
+__pycache__
+# Ignore PyCharm project files
+.idea/
+
+# Ignore Python cache files
+__pycache__/
+database/__pycache__
+*.py[cod]
+.pytest_cache
