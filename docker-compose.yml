@@ -6,13 +6,13 @@ services:
       dockerfile: Dockerfile
     environment:
       # Set the ENV variable dynamically, defaulting to 'development'
-      ENV: ${ENV:-development}
+      ENV: ${ENV:-dev}
       # Pass the strategy file dynamically based on the ENV variable
       STRATEGY: mrat
     env_file:
       - env/base.env
-      - env/${ENV:-development}.env
+      - env/${ENV:-dev}.env
     volumes:
       - ./strategies:/app/strategies
       - ./env:/app/env
-    command: ["--files", "strategies/{ENV}/${STRATEGY}.yml"]
+    command: ["--files", "conf/{ENV}/${STRATEGY}.yml"]

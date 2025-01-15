@@ -3,7 +3,7 @@ name: Build & Publish Prod
 on:
   release:
     types:
-      - edited
+      - created
       - published
 
 jobs:
@@ -41,34 +41,18 @@ jobs:
           DEST_DIR: "releases/"
 
       - name: Build Docker image
-        run: |
-          WHEEL_FILE=$(ls dist/*.whl)
-          docker build --build-arg WHEEL_FILE=$WHEEL_FILE -t ${{ env.IMAGE_NAME }}:${{ github.ref_name }} .
+        run: >
+          WHEEL_FILE=$(ls dist/*.whl) &&
+          docker build --build-arg WHEEL_FILE=$WHEEL_FILE
+          -t ${{ env.IMAGE_NAME }}:${{ github.event.release.tag_name }} .
 
       - name: Log in to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
       - name: Tag and Push Docker image to ECR
-        run: |
-          ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
-          docker tag ${{ env.IMAGE_NAME }}:${{ github.ref_name }} $ECR_REGISTRY/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
-          docker push $ECR_REGISTRY/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
-
-      # ✅ Step 8: Connect to EC2 and deploy the bot
-      - name: Deploy to EC2
-        run: |
-          ssh -o StrictHostKeyChecking=no -i "${{ secrets.EC2_KEY }}" ec2-user@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
-          ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
-
-          # Pull the latest image from ECR
-          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
-          docker pull $ECR_REGISTRY/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
-
-          # Stop and remove any existing container
-          docker stop my-bot || true
-          docker rm my-bot || true
-
-          # Run the Docker container
-          docker run -d --name my-bot --env-file /home/ec2-user/.env $ECR_REGISTRY/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
-          EOF
+        run: >
+          ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com" &&
+          docker tag ${{ env.IMAGE_NAME }}:${{ github.event.release.tag_name }}
+          $ECR_REGISTRY/${{ env.IMAGE_NAME }}:${{ github.event.release.tag_name }} &&
+          docker push $ECR_REGISTRY/${{ env.IMAGE_NAME }}:${{ github.event.release.tag_name }}
