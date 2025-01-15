@@ -9,7 +9,6 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from otomai.core.enums import OrderSide, TradeSide
-from otomai.core.models import Order
 from src.otomai.logger import Logger
 
 logger = Logger(__name__)
@@ -36,14 +35,24 @@ class Exchange(abc.ABC, pdt.BaseModel):
         load_dotenv(dotenv_path=f"{os.getenv('ENV', 'dev')}.env")
 
         self.auth_object = self.auth_object or {}
-        self.auth_object["apiKey"] = self.apiKey or os.getenv(f"{self.KIND.upper()}_API_KEY")
-        self.auth_object["secret"] = self.secret or os.getenv(f"{self.KIND.upper()}_SECRET")
-        self.auth_object["password"] = self.password or os.getenv(f"{self.KIND.upper()}_PASSWORD")
-        self.auth_object["options"] = {'defaultType': self.default_type}
+        self.auth_object["apiKey"] = self.apiKey or os.getenv(
+            f"{self.KIND.upper()}_API_KEY"
+        )
+        self.auth_object["secret"] = self.secret or os.getenv(
+            f"{self.KIND.upper()}_SECRET"
+        )
+        self.auth_object["password"] = self.password or os.getenv(
+            f"{self.KIND.upper()}_PASSWORD"
+        )
+        self.auth_object["options"] = {"defaultType": self.default_type}
 
-        self._auth = all(self.auth_object.get(key) for key in ["apiKey", "secret", "password"])
+        self._auth = all(
+            self.auth_object.get(key) for key in ["apiKey", "secret", "password"]
+        )
         if not self._auth:
-            raise ValueError(f"Missing credentials for {self.KIND} exchange. Check environment variables or input.")
+            raise ValueError(
+                f"Missing credentials for {self.KIND} exchange. Check environment variables or input."
+            )
 
         self._session = self.initialize_session()
 
@@ -121,7 +130,9 @@ class BitgetExchange(Exchange):
             if self._session is None:
                 raise RuntimeError("Session is not initialized.")
 
-            data = self._session.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=window)
+            data = self._session.fetch_ohlcv(
+                symbol=symbol, timeframe=timeframe, limit=window
+            )
             if not data:
                 logger.warning("No OHLCV data fetched.")
                 return pd.DataFrame()

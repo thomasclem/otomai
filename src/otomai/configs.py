@@ -24,17 +24,20 @@ def parse_file(path: str) -> Config:
 def parse_string(string: str) -> Config:
     return oc.OmegaConf.create(string)
 
+
 # %% MERGERS
 
 
 def merge_configs(configs: T.Sequence[Config]) -> Config:
     return oc.OmegaConf.merge(*configs)
 
+
 # %% CONVERTERS
 
 
 def to_object(config: Config, resolve: bool = True) -> object:
     return oc.OmegaConf.to_container(config, resolve=resolve)
+
 
 # %% ENVIRONMENT
 

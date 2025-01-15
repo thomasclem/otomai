@@ -20,6 +20,7 @@ class OrderType(Enum):
 
 # %% SIDE
 
+
 class TradeSide(Enum):
     OPEN = "open"
     CLOSE = "close"

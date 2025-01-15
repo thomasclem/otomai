@@ -8,9 +8,9 @@ from src.otomai.strategies import StrategyKind
 
 # %% SETTINGS
 
+
 class Settings(pdts.BaseSettings, strict=True, frozen=True, extra="forbid"):
-    """
-    """
+    """ """
 
 
 class MainSettings(Settings):

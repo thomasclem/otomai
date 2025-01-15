@@ -33,8 +33,12 @@ class DataBase(abc.ABC, pdt.BaseModel):
 class DynamoDB(DataBase):
     KIND: T.Literal["DynamoDB"] = "DynamoDB"
 
-    aws_access_key_id: str = pdt.Field(default_factory=lambda: os.getenv("AWS_ACCESS_KEY_ID"))
-    aws_secret_access_key: str = pdt.Field(default_factory=lambda: os.getenv("AWS_SECRET_ACCESS_KEY"))
+    aws_access_key_id: str = pdt.Field(
+        default_factory=lambda: os.getenv("AWS_ACCESS_KEY_ID")
+    )
+    aws_secret_access_key: str = pdt.Field(
+        default_factory=lambda: os.getenv("AWS_SECRET_ACCESS_KEY")
+    )
     region_name: str = pdt.Field(default_factory=lambda: os.getenv("AWS_REGION_NAME"))
     table_name: str = pdt.Field(default_factory=lambda: f"{os.getenv('ENV')}_positions")
 

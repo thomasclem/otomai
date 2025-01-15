@@ -1,7 +1,5 @@
 # %% IMPORTS
 
-import typing as T
-from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -34,6 +32,7 @@ def calculate_stop_loss_price(
     else:
         sl = 0.0
     return sl
+
 
 # %% DATE FORMATTING
 

@@ -33,4 +33,3 @@ class TelegramNotifier(Notifier):
         :return:
         """
         await self.bot.send_photo(chat_id=self.chat_id, photo=image, caption=message)
-

@@ -14,8 +14,12 @@ class MRAT:
         self.fast_ma_length = fast_ma_length
         self.values = values
 
-        self._fast_ma_series = ta.trend.sma_indicator(close=self.values, window=self.fast_ma_length)
-        self._slow_ma_series = ta.trend.sma_indicator(close=self.values, window=self.slow_ma_length)
+        self._fast_ma_series = ta.trend.sma_indicator(
+            close=self.values, window=self.fast_ma_length
+        )
+        self._slow_ma_series = ta.trend.sma_indicator(
+            close=self.values, window=self.slow_ma_length
+        )
 
     def calculate_mrat(self) -> pd.Series:
         return self._fast_ma_series / self._slow_ma_series

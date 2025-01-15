@@ -7,7 +7,9 @@ import configs
 # %% PARSER
 
 
-parser = argparse.ArgumentParser(description="Run trading bot strategy from YAML/JSON configs")
+parser = argparse.ArgumentParser(
+    description="Run trading bot strategy from YAML/JSON configs"
+)
 parser.add_argument("files", nargs="*", help="Config files for the strategy to run")
 
 # %% SCRIPTS

@@ -10,7 +10,12 @@ import pydantic as pdt
 from otomai.configs import logger
 from otomai.core import utils
 from otomai.core.models import Position
-from otomai.services import ExchangeServiceKind, NotifierServiceKind, DatabaseService, DynamoDB
+from otomai.services import (
+    ExchangeServiceKind,
+    NotifierServiceKind,
+    DatabaseService,
+    DynamoDB,
+)
 from otomai.core.parameters import TradingParams, StrategyParams
 
 # %% VARIABLES
@@ -21,13 +26,12 @@ SYMBOL_REGEX: re.Pattern = re.compile(r"^[A-Z0-9]+/[A-Z0-9]+(:[A-Z0-9]+)?$")
 
 
 class Strategy(abc.ABC, pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
-
     KIND: str
 
     symbol: str = pdt.Field(
         pattern=r"^[A-Z0-9]+/USDT:USDT$",
         description="Trading pair symbol in the format BASE/QUOTE[:EXCHANGE] (e.g., ETH/USDT:USDT)",
-        strict=True
+        strict=True,
     )
     exchange_service: ExchangeServiceKind = pdt.Field(..., discriminator="KIND")
     notifier_service: NotifierServiceKind = pdt.Field(..., discriminator="KIND")
@@ -42,7 +46,12 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, frozen=True, extra="forbid")
         # You can initialize resources here if needed
         return self
 
-    def __exit__(self, exc_type: T.Type[BaseException], exc_value: BaseException, traceback: T.Any) -> None:
+    def __exit__(
+        self,
+        exc_type: T.Type[BaseException],
+        exc_value: BaseException,
+        traceback: T.Any,
+    ) -> None:
         """
         Exit method for context manager.
         """
@@ -58,9 +67,9 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, frozen=True, extra="forbid")
         )
 
     async def monitor_position_closing(
-            self,
-            symbol: str,
-            open_date: str,
+        self,
+        symbol: str,
+        open_date: str,
     ):
         sleep_time = 60
         while True:
@@ -81,13 +90,17 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, frozen=True, extra="forbid")
                             open_price=str(position_history_info.get("openAvgPrice")),
                             close_price=str(position_history_info.get("closeAvgPrice")),
                             hold_side=str(position_history_info.get("holdSide")),
-                            open_date=str(utils.get_date_from_ts_in_ms(
-                                int(position_history_info["ctime"])
-                            )),
-                            close_date=str(utils.get_date_from_ts_in_ms(
-                                int(position_history_info["utime"])
-                            )),
-                            strategy_params=str(self.strategy_params)
+                            open_date=str(
+                                utils.get_date_from_ts_in_ms(
+                                    int(position_history_info["ctime"])
+                                )
+                            ),
+                            close_date=str(
+                                utils.get_date_from_ts_in_ms(
+                                    int(position_history_info["utime"])
+                                )
+                            ),
+                            strategy_params=str(self.strategy_params),
                         )
                         self.database_service.insert_position(position)
                         logger.info(
@@ -102,7 +115,9 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, frozen=True, extra="forbid")
                         break
                     except Exception as e:
                         logger.error(f"Failed to insert position for {symbol}: {e}")
-                        raise RuntimeError(f"Error inserting position for {symbol}") from e
+                        raise RuntimeError(
+                            f"Error inserting position for {symbol}"
+                        ) from e
                 else:
                     logger.info(
                         f"No net profit available yet for {symbol}, retrying in {sleep_time} seconds..."

@@ -212,4 +212,3 @@ This project is licensed under the [MIT License](LICENSE).
 ## Contact
 
 For inquiries or support, contact the project maintainers at [thomas_cl@gmx.fr].
-
