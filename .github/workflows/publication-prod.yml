@@ -36,7 +36,7 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_S3_BUCKET: "prod-otomai-bot-wheel-files"
+          AWS_S3_BUCKET: "prod-otomai-bot"
           SOURCE_DIR: "dist/"
           DEST_DIR: "releases/"
 
