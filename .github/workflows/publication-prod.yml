@@ -32,7 +32,7 @@ jobs:
       - name: Upload wheel to AWS S3
         uses: jakejarvis/s3-sync-action@v0.5.1
         with:
-          args: --acl public-read
+          args: ""
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
