@@ -10,6 +10,7 @@ ENV PATH=/root/.local/bin:$PATH
 
 WORKDIR /app
 
+COPY pyproject.toml poetry.lock /app/
 COPY dist/*.whl /app/
 RUN pip install /app/*.whl
 
