@@ -5,6 +5,9 @@ description = "A trading bot using ccxt and strategies."
 authors = [
     {name = "thomasclem", email = "thomas_cl@gmx.fr"}
 ]
+packages = [
+    { include = "otomai", from = "src" }
+]
 readme = "README.md"
 requires-python = ">=3.11"
 
