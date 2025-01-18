@@ -12,7 +12,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 
 [tool.poetry.scripts]
-otomai = "src.scripts:main"
+otomai = "otomai.scripts:main"
 
 [tool.poetry.dependencies]
 # Main Dependencies

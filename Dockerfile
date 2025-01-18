@@ -10,4 +10,4 @@ RUN pip install /app/*.whl
 
 COPY conf/ /app/conf/
 
-ENTRYPOINT ["python", "-m", "otomai"]
+ENTRYPOINT ["otomai"]
