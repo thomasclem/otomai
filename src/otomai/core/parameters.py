@@ -5,7 +5,7 @@ import typing as T
 
 from pydantic import BaseModel, Field, model_validator
 
-from src.otomai.core.enums import OrderType, OrderMarginMode
+from otomai.core.enums import OrderType, OrderMarginMode
 
 # %% TRADING PARAMS
 

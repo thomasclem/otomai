@@ -13,8 +13,8 @@ from otomai.core import utils
 from otomai.core.parameters import MratZscoreStrategyParams
 from otomai.core.schemas import OHLCVSchema, MratZscoreKpiSchema
 from otomai.core.indicators import MRAT
-from src.otomai.logger import Logger
-from src.otomai.strategies.base import Strategy
+from otomai.logger import Logger
+from otomai.strategies.base import Strategy
 
 logger = Logger(__name__)
 

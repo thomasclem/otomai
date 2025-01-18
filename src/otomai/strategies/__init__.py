@@ -1,6 +1,6 @@
 import pydantic as pdt
 import typing as T
-from src.otomai.strategies.mrat_zscore import MratZscoreStrategy
+from otomai.strategies.mrat_zscore import MratZscoreStrategy
 
 StrategyKind = T.Union[MratZscoreStrategy]
 

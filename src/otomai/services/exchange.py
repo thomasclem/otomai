@@ -9,7 +9,7 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from otomai.core.enums import OrderSide, TradeSide
-from src.otomai.logger import Logger
+from otomai.logger import Logger
 
 logger = Logger(__name__)
 
