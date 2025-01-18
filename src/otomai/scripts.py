@@ -1,8 +1,7 @@
 # %% IMPORTS
 import argparse
 
-import settings
-import configs
+from otomai import settings, configs
 
 # %% PARSER
 
