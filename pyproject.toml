@@ -27,7 +27,7 @@ cloudpathlib = "^0.20.0"
 pydantic = "^2.10.2"
 pydantic-settings = "^2.6.1"
 boto3 = "^1.35.72"
-pandera = "^0.21.1"
+pandera = "^0.22.1"
 typing-extensions = "^4.12.2"
 
 [tool.poetry.group.test.dependencies]
