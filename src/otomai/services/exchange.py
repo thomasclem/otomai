@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 from otomai.core.enums import OrderSide, TradeSide
 from otomai.logger import Logger
 
+from src.otomai.core.enums import OrderMarginMode
+
 logger = Logger(__name__)
 
 
@@ -192,3 +194,46 @@ class BitgetExchange(Exchange):
         except Exception as e:
             logger.error(f"An unexpected error occurred: {e}")
             raise
+
+    def set_margin_mode_and_leverage(
+        self, symbol: str, margin_mode: str, leverage: int
+    ):
+        try:
+            self._session.set_margin_mode(
+                marginMode=margin_mode,
+                symbol=symbol,
+                params={"productType": "UMCBL", "marginCoin": "USDT"},
+            )
+            logger.info(f"Margin mode set to {margin_mode} for {symbol}")
+        except Exception as e:
+            logger.error(f"Error setting margin mode for {symbol}: {e}")
+        try:
+            if margin_mode == OrderMarginMode.ISOLATED.value:
+                self._session.set_leverage(
+                    leverage=leverage,
+                    symbol=symbol,
+                    params={
+                        "productType": "UMCBL",
+                        "holdSide": "long",
+                    },
+                )
+                self._session.set_leverage(
+                    leverage=leverage,
+                    symbol=symbol,
+                    params={
+                        "productType": "UMCBL",
+                        "holdSide": "short",
+                    },
+                )
+                leverage = self._session.fetch_leverage(symbol=symbol)
+                assert leverage["shortLeverage"] == leverage
+
+            else:
+                self._session.set_leverage(
+                    leverage=leverage,
+                    symbol=symbol,
+                    params={"productType": "UMCBL", "marginCoin": "USDT"},
+                )
+            logger.info(f"Leverage set to {leverage} for {symbol}")
+        except Exception as e:
+            logger.error(f"Error setting leverage for {symbol}: {e}")

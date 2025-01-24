@@ -122,6 +122,11 @@ class MratZscoreStrategy(Strategy):
             self.trading_params.leverage,
         )
         try:
+            self.exchange_service.set_margin_mode_and_leverage(
+                symbol=symbol,
+                margin_mode=self.trading_params.margin_mode,
+                leverage=self.trading_params.leverage,
+            )
             order = self.exchange_service.create_order(
                 symbol=symbol,
                 side=order_side,
