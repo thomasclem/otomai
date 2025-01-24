@@ -147,7 +147,7 @@ class MratZscoreStrategy(Strategy):
         return self.exchange_service.create_order(
             symbol=symbol,
             side=OrderSide.BUY,
-            amount=pos["positionAmt"],
+            amount=pos["total"],
             type=order_type,
             margin_mode=margin_mode,
             trade_side=TradeSide.CLOSE,
