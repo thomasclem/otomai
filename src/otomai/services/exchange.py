@@ -8,10 +8,8 @@ from ccxt import bitget
 import pandas as pd
 from dotenv import load_dotenv
 
-from otomai.core.enums import OrderSide, TradeSide
+from otomai.core.enums import OrderSide, TradeSide, OrderMarginMode
 from otomai.logger import Logger
-
-from src.otomai.core.enums import OrderMarginMode
 
 logger = Logger(__name__)
 
