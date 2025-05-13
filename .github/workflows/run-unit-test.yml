@@ -18,6 +18,10 @@ jobs:
         with:
           poetry-version: "2.0.0"
 
+      - name: Install dependencies
+        run: |
+          poetry install
+
       - name: Launch unit tests
         run: |
           poetry run pytest
