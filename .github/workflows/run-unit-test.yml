@@ -1,0 +1,23 @@
+name: Run Unit Tests on PR
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  build-and-launch-unit-test:
+    name: Build and Launch Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: "2.0.0"
+
+      - name: Launch unit tests
+        run: |
+          poetry run pytest
