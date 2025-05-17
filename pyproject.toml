@@ -9,14 +9,13 @@ packages = [
     { include = "otomai", from = "src" }
 ]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<4.0"
 
 [tool.poetry.scripts]
 otomai = "otomai.scripts:main"
 
 [tool.poetry.dependencies]
 # Main Dependencies
-python = ">=3.11"
 ccxt = ">=4.4.35,<5.0.0"  # Cryptocurrency trading library
 pandas = ">=2.2.3,<3.0.0"  # Data analysis library
 ta = ">=0.11.0,<0.12.0"  # Technical analysis library
@@ -38,6 +37,7 @@ pytest-asyncio = "^0.25.2"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.0.1"
+jupyter = "^1.1.1"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
