@@ -76,4 +76,17 @@ class MratZscoreStrategyParams(abc.ABC, BaseModel):
         return values
 
 
-StrategyParams = T.Union[MratZscoreStrategyParams]
+class TrendingNewsStrategyParams(abc.ABC, BaseModel):
+    name: str = Field(default="trending_news", description="Strategy name")
+    impact_score_positive_threshold: float = Field(
+        default=0.5,
+        description="Threshold for positive impact score of the news to get considered",
+    )
+    impact_score_negative_threshold: float = Field(
+        default=-0.5,
+        description="Threshold for negative impact score of the news to get considered",
+    )
+    prompt: str = Field(default="trending_news", description="Strategy name")
+
+
+StrategyParams = T.Union[MratZscoreStrategyParams, TrendingNewsStrategyParams]
