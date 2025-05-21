@@ -63,8 +63,7 @@ class MratZscoreStrategy(Strategy):
 
     def _get_order_creation_amount(self, equity_trade_pct: float) -> float:
         try:
-            balance = self.exchange_service.session.fetch_balance()
-            free_amount = balance["USDT"]["free"]
+            free_amount = self.exchange_service.fetch_free_amount_in_balance()
             return free_amount * equity_trade_pct / 100
         except Exception as e:
             logger.error(f"Error calculating new position amount: {e}")

@@ -1,4 +1,5 @@
 import abc
+import asyncio
 import os
 import typing as T
 
@@ -235,3 +236,71 @@ class BitgetExchange(Exchange):
             logger.info(f"Leverage set to {leverage} for {symbol}")
         except Exception as e:
             logger.error(f"Error setting leverage for {symbol}: {e}")
+
+    async def fetch_all_symbols_ohlcv(
+        self, timeframe="1h", ohlcv_window=20
+    ) -> pd.DataFrame:
+        """
+        Fetch OHLCV data for all symbols asynchronously, respecting the API rate limit.
+
+        Args:
+            timeframe (str): The timeframe for the OHLCV data (e.g., '1h').
+            ohlcv_window (int): The window size for fetching OHLCV data.
+
+        Returns:
+            pd.DataFrame: A pandas DataFrame containing OHLCV data for all symbols.
+        """
+        symbol_list = self.fetch_all_symbol_names()
+        semaphore = asyncio.Semaphore(20)
+
+        async def fetch_symbol_ohlcv(semaphore, symbol: str):
+            """
+            Fetch OHLCV data for a single symbol asynchronously.
+
+            Args:
+                semaphore (asyncio.Semaphore): A semaphore to control the rate limit.
+                symbol (str): The trading symbol.
+
+            Returns:
+                pd.DataFrame: A pandas DataFrame containing OHLCV data for the symbol, or None if data is not available.
+            """
+            async with semaphore:
+                try:
+                    data = self.fetch_ohlcv_df(
+                        symbol=symbol, timeframe=timeframe, window=ohlcv_window
+                    )
+                    if data.shape[0] >= ohlcv_window:
+                        return data
+                    else:
+                        return None
+                except Exception as e:
+                    logger.error(f"Failed to fetch data for {symbol}: {e}")
+                    return None
+
+        tasks = [fetch_symbol_ohlcv(semaphore, symbol) for symbol in symbol_list]
+        ohlcv_data = await asyncio.gather(*tasks)
+
+        valid_dataframes = [df for df in ohlcv_data if df is not None]
+        failed_symbols_count = len(symbol_list) - len(valid_dataframes)
+
+        if failed_symbols_count / len(symbol_list) > 0.1:
+            logger.error(
+                f"Failed to fetch OHLCV data for {failed_symbols_count} symbols out of {len(symbol_list)}"
+            )
+
+        if valid_dataframes:
+            return pd.concat(valid_dataframes)
+
+        return pd.DataFrame()
+
+    def fetch_free_amount_in_balance(self) -> float:
+        balance = self._session.fetch_balance()
+        return balance["USDT"]["free"]
+
+    def fetch_all_symbol_names(self) -> T.List[str]:
+        try:
+            tickers = self._session.fetch_tickers()
+            return list(tickers.keys())
+        except Exception as e:
+            logger.error(f"Error fetching symbol names: {e}")
+            return []

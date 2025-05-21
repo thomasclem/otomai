@@ -24,3 +24,10 @@ MratZscoreKpiSchema = OHLCVSchema.add_columns(
         "z_score_mrat": pa.Column(float, nullable=True, coerce=True),
     }
 )
+
+RsiDailyKpiSchema = OHLCVSchema.add_columns(
+    {
+        "rsi": pa.Column(float, nullable=True, coerce=True),
+        "rsi_lag": pa.Column(float, nullable=True, coerce=True),
+    }
+)

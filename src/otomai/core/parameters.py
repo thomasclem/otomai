@@ -38,6 +38,10 @@ class TradingParams(abc.ABC, BaseModel):
         ge=0,
         le=100,
     )
+    max_position_open_days: T.Optional[int] = Field(
+        default=None,
+        description="Maximum number of days a position can stay open (optional).",
+    )
 
     class Config:
         title = "Trading Parameters"
@@ -76,4 +80,12 @@ class MratZscoreStrategyParams(abc.ABC, BaseModel):
         return values
 
 
-StrategyParams = T.Union[MratZscoreStrategyParams]
+class RsiDailyStrategyParams(abc.ABC, BaseModel):
+    rsi_window: int = Field(default=14, description="RSI window (length")
+    rsi_threshold: float = Field(default=72, description="RSI window (length")
+    timeframe: T.Literal["1m", "5m", "15m", "30m", "1h", "4h", "1d"] = Field(
+        default="1d", description="Timeframe symbol"
+    )
+
+
+StrategyParams = T.Union[MratZscoreStrategyParams, RsiDailyStrategyParams]
