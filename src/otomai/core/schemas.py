@@ -29,5 +29,6 @@ RsiDailyKpiSchema = OHLCVSchema.add_columns(
     {
         "rsi": pa.Column(float, nullable=True, coerce=True),
         "rsi_lag": pa.Column(float, nullable=True, coerce=True),
+        "abs_diff_rsi": pa.Column(float, nullable=True, coerce=True),
     }
 )

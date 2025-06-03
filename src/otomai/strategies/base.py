@@ -25,7 +25,7 @@ SYMBOL_REGEX: re.Pattern = re.compile(r"^[A-Z0-9]+/[A-Z0-9]+(:[A-Z0-9]+)?$")
 # %% STRATEGY
 
 
-class Strategy(abc.ABC, pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
+class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
     KIND: str
 
     symbol: str = pdt.Field(
@@ -65,6 +65,8 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, frozen=True, extra="forbid")
         await self.notifier_service.send_message(
             message=f"### {self.strategy_params.name} ### \n\n Position successfully open for {symbol}."
         )
+
+        return open_position
 
     async def monitor_position_closing(
         self,
@@ -125,9 +127,24 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, frozen=True, extra="forbid")
 
             await asyncio.sleep(sleep_time)
 
-    async def monitor_position(self, symbol: str, open_date: str):
+    async def monitor_position_opening_and_closing(self, symbol: str, open_date: str):
         await self.monitor_position_opening(symbol)
         await self.monitor_position_closing(symbol, open_date)
+
+    def get_order_creation_amount(
+        self, equity_trade_pct: float, postions_nb_to_open: int
+    ) -> float:
+        try:
+            free_amount = self.exchange_service.fetch_free_amount_in_balance()
+            return free_amount * equity_trade_pct / 100 / postions_nb_to_open
+        except Exception as e:
+            logger.error(f"Error calculating new position amount: {e}")
+            return 0.0
+
+    def get_remaining_position_number_to_open(self):
+        return self.trading_params.max_simultaneous_positions - len(
+            self.exchange_service.session.fetch_positions()
+        )
 
     @abc.abstractmethod
     async def run(self) -> T.Any:

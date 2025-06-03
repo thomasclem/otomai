@@ -61,14 +61,6 @@ class MratZscoreStrategy(Strategy):
     def _is_sell_signal(row: pd.Series, z_score_threshold: float) -> bool:
         return row["z_score_mrat"] >= z_score_threshold
 
-    def _get_order_creation_amount(self, equity_trade_pct: float) -> float:
-        try:
-            free_amount = self.exchange_service.fetch_free_amount_in_balance()
-            return free_amount * equity_trade_pct / 100
-        except Exception as e:
-            logger.error(f"Error calculating new position amount: {e}")
-            return 0.0
-
     def _should_open_position(self, current_row: pd.Series, z_score_threshold: float):
         return (
             self._is_buy_signal(current_row, z_score_threshold)
@@ -105,7 +97,10 @@ class MratZscoreStrategy(Strategy):
     ):
         ticker = self.exchange_service.session.fetch_ticker(symbol=symbol)
         last_price = float(ticker["info"]["lastPr"])
-        size = self._get_order_creation_amount(self.trading_params.equity_trade_pct)
+        size = self.get_order_creation_amount(
+            self.trading_params.equity_trade_pct,
+            self.trading_params.max_simultaneous_positions,
+        )
         amount = size / last_price
 
         take_profit_price = utils.calculate_take_profit_price(
@@ -194,7 +189,7 @@ class MratZscoreStrategy(Strategy):
                         reduce=False,
                     )
                     asyncio.create_task(
-                        self.monitor_position(
+                        self.monitor_position_opening_and_closing(
                             symbol=self.symbol,
                             open_date=open_date_str,
                         )

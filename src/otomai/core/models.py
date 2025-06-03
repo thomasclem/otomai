@@ -6,8 +6,6 @@ import typing as T
 
 import pydantic as pdt
 
-from otomai.core.parameters import StrategyParams
-
 
 # %% ORDERS
 
@@ -24,7 +22,7 @@ class Orders(pdt.BaseModel):
     orders: T.List[Order]
 
 
-# %% ORDERS
+# %% POSITIONS
 
 
 class Position(pdt.BaseModel):

@@ -16,9 +16,11 @@ strategy:
   trading_params:
     equity_trade_pct: 100
     leverage: 1
-    stop_loss_pct: 11
+    stop_loss_pct: 9
     take_profit_pct: 12
-    max_simultaneous_positions: 5
+    intermediate_take_profit_pct: 6
+    intermediate_take_profit_size_to_close_pct: 0.5
+    max_simultaneous_positions: 3
     order_type: market
     margin_mode: isolated
     max_position_open_days: 7
