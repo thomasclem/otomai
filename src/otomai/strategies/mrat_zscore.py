@@ -57,9 +57,18 @@ class MratZscoreStrategy(Strategy):
             row["filter_ma"] < row["slow_ma"]
         )
 
-    @staticmethod
-    def _is_sell_signal(row: pd.Series, z_score_threshold: float) -> bool:
-        return row["z_score_mrat"] >= z_score_threshold
+    def _is_sell_signal(
+        self,
+        symbol: str,
+        row: pd.Series,
+        z_score_threshold: float,
+        tp_z_score_threshold: float,
+    ) -> bool:
+        position = self.exchange_service.session.fetch_position(symbol=symbol)
+        position_percentage = float(position.get("percentage", 0.0))
+        return (row["z_score_mrat"] >= z_score_threshold) and (
+            position_percentage >= tp_z_score_threshold
+        )
 
     def _get_order_creation_amount(self, equity_trade_pct: float) -> float:
         try:
@@ -83,9 +92,20 @@ class MratZscoreStrategy(Strategy):
             == 0
         )
 
-    def _should_close_position(self, current_row: pd.Series, z_score_threshold: float):
+    def _should_close_position(
+        self,
+        symbol: str,
+        current_row: pd.Series,
+        z_score_threshold: float,
+        tp_z_score_threshold: float,
+    ):
         return (
-            self._is_sell_signal(current_row, z_score_threshold)
+            self._is_sell_signal(
+                symbol=symbol,
+                row=current_row,
+                z_score_threshold=z_score_threshold,
+                tp_z_score_threshold=tp_z_score_threshold,
+            )
             # close if a position exist only
             and len(
                 self.exchange_service.session.fetch_positions(symbols=[self.symbol])
@@ -201,7 +221,10 @@ class MratZscoreStrategy(Strategy):
                         )
                     )
                 elif self._should_close_position(
-                    current_row, self.strategy_params.z_score_threshold
+                    symbol=self.symbol,
+                    row=current_row,
+                    z_score_threshold=self.strategy_params.z_score_threshold,
+                    tp_z_score_threshold=self.strategy_params.tp_z_score_threshold,
                 ):
                     logger.info(
                         f"Sell signal detected for {self.symbol}. Z-Score: {current_row['z_score_mrat']}"

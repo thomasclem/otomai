@@ -6,6 +6,7 @@ strategy:
     slow_ma_length: 51
     filter_ma_length: 100
     z_score_threshold: 2.22
+    tp_z_score_threshold: 2.0
     timeframe: 1h
   database_service:
     KIND: DynamoDB
