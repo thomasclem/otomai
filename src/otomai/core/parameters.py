@@ -58,6 +58,10 @@ class MratZscoreStrategyParams(abc.ABC, BaseModel):
     z_score_threshold: float = Field(
         default=2.22, description="Fast moving average length."
     )
+    tp_z_score_threshold: float = Field(
+        default=2.0,
+        description="Take profit percentage if z_score threshold is overcome.",
+    )
     timeframe: T.Literal["1m", "5m", "15m", "30m", "1h", "4h"] = Field(
         default="1h", description="Timeframe symbol"
     )

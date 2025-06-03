@@ -25,7 +25,7 @@ SYMBOL_REGEX: re.Pattern = re.compile(r"^[A-Z0-9]+/[A-Z0-9]+(:[A-Z0-9]+)?$")
 # %% STRATEGY
 
 
-class Strategy(abc.ABC, pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
+class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
     KIND: str
 
     symbol: str = pdt.Field(
