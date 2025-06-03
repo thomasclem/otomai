@@ -57,15 +57,13 @@ class MratZscoreStrategy(Strategy):
             row["filter_ma"] < row["slow_ma"]
         )
 
+    @staticmethod
     def _is_sell_signal(
-        self,
-        symbol: str,
         row: pd.Series,
         z_score_threshold: float,
+        position_percentage: float,
         tp_z_score_threshold: float,
     ) -> bool:
-        position = self.exchange_service.session.fetch_position(symbol=symbol)
-        position_percentage = float(position.get("percentage", 0.0))
         return (row["z_score_mrat"] >= z_score_threshold) and (
             position_percentage >= tp_z_score_threshold
         )
@@ -99,22 +97,18 @@ class MratZscoreStrategy(Strategy):
         z_score_threshold: float,
         tp_z_score_threshold: float,
     ):
-        return (
-            self._is_sell_signal(
-                symbol=symbol,
+        position = self.exchange_service.session.fetch_position(symbol=symbol)
+        if (position["id"]) and (
+            len(self.exchange_service.session.fetch_open_orders(symbol=self.symbol))
+            == 0
+        ):
+            return self._is_sell_signal(
                 row=current_row,
                 z_score_threshold=z_score_threshold,
+                position_percentage=float(position.get("percentage", 0.0)),
                 tp_z_score_threshold=tp_z_score_threshold,
             )
-            # close if a position exist only
-            and len(
-                self.exchange_service.session.fetch_positions(symbols=[self.symbol])
-            )
-            == 1
-            # close if there is no current closing order
-            and len(self.exchange_service.session.fetch_open_orders(symbol=self.symbol))
-            == 0
-        )
+        return False
 
     def _open_position_order(
         self,
