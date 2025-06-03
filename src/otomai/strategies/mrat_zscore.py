@@ -222,7 +222,7 @@ class MratZscoreStrategy(Strategy):
                     )
                 elif self._should_close_position(
                     symbol=self.symbol,
-                    row=current_row,
+                    current_row=current_row,
                     z_score_threshold=self.strategy_params.z_score_threshold,
                     tp_z_score_threshold=self.strategy_params.tp_z_score_threshold,
                 ):
