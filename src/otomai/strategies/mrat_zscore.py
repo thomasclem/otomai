@@ -98,7 +98,7 @@ class MratZscoreStrategy(Strategy):
         tp_z_score_threshold: float,
     ):
         position = self.exchange_service.session.fetch_position(symbol=symbol)
-        if (position["id"]) and (
+        if (position["unrealizedPnl"]) and (
             len(self.exchange_service.session.fetch_open_orders(symbol=self.symbol))
             == 0
         ):
