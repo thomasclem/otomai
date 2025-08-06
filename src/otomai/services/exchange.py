@@ -8,6 +8,7 @@ from ccxt import bitget
 import pandas as pd
 from dotenv import load_dotenv
 
+from otomai.core import utils
 from otomai.core.enums import OrderSide, TradeSide, OrderMarginMode
 from otomai.logger import Logger
 
@@ -214,6 +215,80 @@ class BitgetExchange(Exchange):
             logger.info(f"Leverage set to {leverage} for {symbol}")
         except Exception as e:
             logger.error(f"Error setting leverage for {symbol}: {e}")
+
+    def compute_open_order_amount_based_on_equity(
+        self, equity_trade_pct: float, price: float
+    ) -> float:
+        balance = self._session.fetch_balance()
+        free_amount = balance["USDT"]["free"]
+        usdt_size = free_amount * equity_trade_pct / 100
+
+        return usdt_size / price
+
+    def open_future_order(
+        self,
+        symbol: str,
+        equity_trade_pct: float,
+        order_type: str,
+        order_side: OrderSide,
+        margin_mode: str,
+        leverage: int = 1,
+        price: T.Optional[float] = None,
+        reduce: T.Optional[bool] = False,
+        take_profit_pct: T.Optional[float] = None,
+        stop_loss_pct: T.Optional[float] = None,
+    ):
+        if not price:
+            ticker = self.exchange_service.session.fetch_ticker(symbol=symbol)
+            price = float(ticker["info"]["lastPr"])
+
+        amount = self.compute_open_order_amount_based_on_equity(
+            symbol, equity_trade_pct
+        )
+
+        if take_profit_pct:
+            take_profit_price = utils.calculate_take_profit_price(
+                price,
+                order_side,
+                self.trading_params.take_profit_pct,
+                self.trading_params.leverage,
+            )
+        else:
+            take_profit_price = None
+
+        if stop_loss_pct:
+            stop_loss_price = utils.calculate_stop_loss_price(
+                price,
+                order_side,
+                self.trading_params.stop_loss_pct,
+                self.trading_params.leverage,
+            )
+        else:
+            stop_loss_price = None
+
+        try:
+            self.set_margin_mode_and_leverage(
+                symbol=symbol,
+                margin_mode=margin_mode,
+                leverage=leverage,
+            )
+            order = self.create_order(
+                symbol=symbol,
+                side=order_side,
+                amount=amount,
+                type=order_type,
+                margin_mode=margin_mode,
+                trade_side=TradeSide.OPEN,
+                take_profit_price=take_profit_price,
+                stop_loss_price=stop_loss_price,
+                reduce=reduce,
+            )
+            logger.info(f"Order placed successfully: {order}")
+
+            return order
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
+            raise
 
     def fetch_all_futures_symbol_names(self):
         exchange_market = self._session.load_markets(reload=True)

@@ -48,7 +48,7 @@ class TradingParams(abc.ABC, BaseModel):
 # %% STRATEGY PARAMS
 
 
-class MratZscoreStrategyParams(abc.ABC, BaseModel):
+class MratZscoreStrategyParams(BaseModel):
     name: str = Field(default="mrat_zscore", description="Strategy name")
     fast_ma_length: int = Field(default=9, description="Fast moving average length.")
     slow_ma_length: int = Field(default=51, description="Slow moving average length.")
@@ -80,7 +80,7 @@ class MratZscoreStrategyParams(abc.ABC, BaseModel):
         return values
 
 
-class ListingBackrunStrategyParams(abc.ABC, BaseModel):
+class ListingBackrunStrategyParams(BaseModel):
     name: str = Field(default="listing_backrun", description="Strategy name")
     ohlcv_timeframe: T.Literal["1m", "5m", "15m", "30m", "1h", "4h"] = Field(
         default="1h", description="Timeframe for the OHLCV data"

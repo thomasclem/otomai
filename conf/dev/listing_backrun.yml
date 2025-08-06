@@ -2,7 +2,7 @@ strategy:
   KIND: ListingBackrunStrategy
   symbol: ETH/USDT:USDT
   strategy_params:
-    ohlcv_tf: 4h
+    ohlcv_timeframe: 4h
     ohlcv_window: 2
     short_price_volatility_threshold: -20.0
     long_price_volatility_threshold: 20.0

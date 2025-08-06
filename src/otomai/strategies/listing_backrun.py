@@ -1,9 +1,11 @@
 import typing as T
+import asyncio
 
 import pandas as pd
 from pandera.typing import DataFrame
 
-from otomai.core.parameters import ListingBackrunStrategyParams
+from otomai.core.enums import OrderSide
+from otomai.core.parameters import ListingBackrunStrategyParams, TradingParams
 from otomai.core.schemas import ListingBackrunKpiSchema
 from otomai.strategies.base import Strategy
 from otomai.logger import Logger
@@ -16,7 +18,7 @@ logger = Logger(__name__)
 class ListingBackrunStrategy(Strategy):
     KIND: T.Literal["ListingBackrunStrategy"] = "ListingBackrunStrategy"
 
-    strategy_params = ListingBackrunStrategyParams
+    strategy_params: ListingBackrunStrategyParams
 
     def _fetch_symbol_data(
         self, symbol: str, ohlcv_tf: str, ohlcv_window: int
@@ -38,14 +40,14 @@ class ListingBackrunStrategy(Strategy):
             .reset_index()
         )
 
-        df = pd.merge(df_candidate, df_btc, "left", "index")
+        df = pd.merge(df_candidate, df_btc, "left", "date")
         df["volume_usdt"] = (df["close"] + df["open"]) / 2 * df["volume"]
         df["volume_btc_usdt"] = (
             (df["close_btc"] + df["open_btc"]) / 2 * df["volume_btc"]
         )
         df["volume_usdt_btc_prop"] = df["volume_usdt"] / df["volume_btc_usdt"] * 100
         df["btc_vol"] = (df["close_btc"] - df["open_btc"]) / df["open_btc"] * 100
-        df.set_index("index", inplace=True, drop=True)
+        df.set_index("date", inplace=True, drop=True)
 
         return df.drop(
             ["volume_btc", "open_btc", "close_btc", "volume_usdt", "volume_btc_usdt"],
@@ -94,7 +96,7 @@ class ListingBackrunStrategy(Strategy):
             & above_volume_usdt_btc_prop_threshold
         )
 
-    def _process_candidate_symbol(
+    async def _process_candidate_symbol(
         self,
         symbol: str,
         ohlcv_tf: str,
@@ -104,10 +106,13 @@ class ListingBackrunStrategy(Strategy):
         short_btc_volatility_threshold: float,
         long_btc_volatility_threshold: float,
         volume_usdt_btc_prop_threshold: float,
+        trading_params: TradingParams,
     ):
-        df = pd.DataFrame()
+        df = self._fetch_symbol_data(
+            symbol=symbol, ohlcv_tf=ohlcv_tf, ohlcv_window=ohlcv_window
+        )
 
-        while len(df) <= 1:
+        while len(df) <= 2:
             df = self._fetch_symbol_data(
                 symbol=symbol, ohlcv_tf=ohlcv_tf, ohlcv_window=ohlcv_window
             )
@@ -117,7 +122,16 @@ class ListingBackrunStrategy(Strategy):
                 short_btc_volatility_threshold=short_btc_volatility_threshold,
                 volume_usdt_btc_prop_threshold=volume_usdt_btc_prop_threshold,
             ):
-                pass
+                self.exchange_service.open_future_order(
+                    symbol=symbol,
+                    equity_trade_pct=trading_params.equity_trade_pct,
+                    order_type=trading_params.order_type,
+                    order_side=OrderSide.BUY,
+                    margin_mode=trading_params.margin_mode,
+                    leverage=trading_params.leverage,
+                    take_profit_pct=trading_params.take_profit_pct,
+                    stop_loss_pct=trading_params.stop_loss_pct,
+                )
 
             if self._is_buy_signal(
                 row=df.iloc[0],
@@ -125,7 +139,16 @@ class ListingBackrunStrategy(Strategy):
                 long_btc_volatility_threshold=long_btc_volatility_threshold,
                 volume_usdt_btc_prop_threshold=volume_usdt_btc_prop_threshold,
             ):
-                pass
+                self.exchange_service.open_future_order(
+                    symbol=symbol,
+                    equity_trade_pct=trading_params.equity_trade_pct,
+                    order_type=trading_params.order_type,
+                    order_side=OrderSide.SELL,
+                    margin_mode=trading_params.margin_mode,
+                    leverage=trading_params.leverage,
+                    take_profit_pct=trading_params.take_profit_pct,
+                    stop_loss_pct=trading_params.stop_loss_pct,
+                )
 
     async def run(self):
         exchange_symbols = self.exchange_service.fetch_all_futures_symbol_names()
@@ -136,31 +159,34 @@ class ListingBackrunStrategy(Strategy):
                     self.exchange_service.fetch_all_futures_symbol_names()
                 )
                 exchange_new_symbols = list(
-                    set(exchange_update_symbols) - set(exchange_symbols)
+                    set(exchange_update_symbols) - set(exchange_symbols[:-1])
                 )
 
                 if exchange_new_symbols:
                     exchange_symbols = exchange_update_symbols
-                    await self.notifier_service.send_message(
-                        message=(
-                            f"### {self.strategy_params.name} ###\n\n"
-                            f"New candidate symbols found: {''.join(exchange_new_symbols)}"
-                        )
-                    )
+                    # await self.notifier_service.send_message(
+                    #    message=(
+                    #        f"### {self.strategy_params.name} ###\n\n"
+                    #        f"New candidate symbols found: {''.join(exchange_new_symbols)}"
+                    #    )
+                    # )
                     logger.info(
                         f"Candidates future symbols : {''.join(exchange_new_symbols)}"
                     )
 
                     for symbol in exchange_new_symbols:
-                        self._process_candidate_symbol(
-                            symbol=symbol,
-                            ohlcv_tf=self.strategy_params.ohlcv_timeframe,
-                            ohlcv_window=self.strategy_params.ohlcv_window,
-                            short_price_volatility_threshold=self.strategy_params.short_price_volatility_threshold,
-                            long_price_volatility_threshold=self.strategy_params.long_price_volatility_threshold,
-                            short_btc_volatility_threshold=self.strategy_params.short_btc_volatility_threshold,
-                            long_btc_volatility_threshold=self.strategy_params.long_btc_volatility_threshold,
-                            volume_usdt_btc_prop_threshold=self.strategy_params.volume_usdt_btc_prop_threshold,
+                        asyncio.create_task(
+                            self._process_candidate_symbol(
+                                symbol=symbol,
+                                ohlcv_tf=self.strategy_params.ohlcv_timeframe,
+                                ohlcv_window=self.strategy_params.ohlcv_window,
+                                short_price_volatility_threshold=self.strategy_params.short_price_volatility_threshold,
+                                long_price_volatility_threshold=self.strategy_params.long_price_volatility_threshold,
+                                short_btc_volatility_threshold=self.strategy_params.short_btc_volatility_threshold,
+                                long_btc_volatility_threshold=self.strategy_params.long_btc_volatility_threshold,
+                                volume_usdt_btc_prop_threshold=self.strategy_params.volume_usdt_btc_prop_threshold,
+                                trading_params=self.trading_params,
+                            )
                         )
 
             except Exception as e:
