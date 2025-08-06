@@ -183,7 +183,7 @@ class DextoolsAudit(BaseModel):
 
 
 class Audit(BaseModel):
-    is_contract_renounced: bool
+    is_contract_renounced: Optional[bool] = None
     url: Optional[str] = ""
     codeVerified: Optional[bool] = None
     date: Optional[datetime] = None
@@ -273,11 +273,11 @@ class Disclaimer(BaseModel):
 
 class Token(BaseModel):
     audit: Optional[Audit] = None
-    decimals: int
+    decimals: Optional[int] = None
     locks: Optional[List[Any]] = []
-    name: str
-    symbol: str
-    totalSupply: str
+    name: Optional[str] = ""
+    symbol: Optional[str] = ""
+    totalSupply: Optional[str] = ""
     banner: Optional[str] = ""
     categories: Optional[List[Union[str, int]]] = []
     info: Optional[TokenInfo] = None
@@ -304,9 +304,9 @@ class Votes(BaseModel):
 
 
 class Nitro(BaseModel):
-    total: int
-    lastNitro: datetime
-    tickers: List[Dict[str, int]]
+    total: Optional[int]
+    lastNitro: Optional[datetime]
+    tickers: Optional[List[Dict[str, int]]]
 
 
 class RugPull(BaseModel):
@@ -316,7 +316,7 @@ class RugPull(BaseModel):
 
 class FirstMakers(BaseModel):
     snipers: Optional[List[str]] = None
-    others: List[str]
+    others: Optional[List[str]] = None
 
 
 class PairResult(BaseModel):

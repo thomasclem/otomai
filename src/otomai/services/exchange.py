@@ -64,14 +64,6 @@ class Exchange(abc.ABC, pdt.BaseModel):
         """
         raise NotImplementedError("Subclasses must implement `initialize_session`.")
 
-    @abc.abstractmethod
-    def load_markets(self):
-        """
-        Load markets for the exchange.
-        Must be implemented by subclasses.
-        """
-        raise NotImplementedError("Subclasses must implement `load_markets`.")
-
     def is_authenticated(self) -> bool:
         """
         Check if the client is authenticated.
@@ -100,19 +92,6 @@ class BitgetExchange(Exchange):
         except Exception as e:
             logger.error(f"Failed to initialize Bitget session: {e}")
             raise
-
-    def load_markets(self):
-        """
-        Load market data from Bitget.
-        """
-        try:
-            if self._session is None:
-                raise RuntimeError("Session is not initialized.")
-            self._session.load_markets()
-            logger.info("Markets loaded successfully.")
-        except Exception as e:
-            logger.error(f"Error loading markets: {e}")
-            raise RuntimeError(f"Failed to load markets: {e}")
 
     def fetch_ohlcv_df(self, symbol: str, timeframe: str, window: int) -> pd.DataFrame:
         """
@@ -235,3 +214,14 @@ class BitgetExchange(Exchange):
             logger.info(f"Leverage set to {leverage} for {symbol}")
         except Exception as e:
             logger.error(f"Error setting leverage for {symbol}: {e}")
+
+    def fetch_all_futures_symbol_names(self):
+        exchange_market = self._session.load_markets(reload=True)
+        return [s for s in exchange_market.keys() if s.endswith(":USDT")]
+
+    def fetch_all_spot_symbol_name(self):
+        exchange_market = self._session.load_markets(reload=True)
+        return [s for s in exchange_market.keys() if s.endswith("/USDT")]
+
+
+ExchangeKind = T.Union[BitgetExchange]

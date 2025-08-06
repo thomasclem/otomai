@@ -1,0 +1,27 @@
+strategy:
+  KIND: ListingBackrunStrategy
+  symbol: ETH/USDT:USDT
+  strategy_params:
+    ohlcv_tf: 4h
+    ohlcv_window: 1
+    short_price_volatility_threshold: -20.0
+    long_price_volatility_threshold: 20.0
+    short_btc_volatility_threshold: -0.3
+    long_btc_volatility_threshold: 0.3
+    volume_usdt_btc_prop_threshold: 0.5
+  database_service:
+    KIND: DynamoDB
+  exchange_service:
+    KIND: Bitget
+    default_type: future
+  notifier_service:
+    KIND: Telegram
+    chat_id: 5609154988
+  trading_params:
+    equity_trade_pct: 100
+    leverage: 1
+    stop_loss_pct: 20
+    take_profit_pct: 50
+    max_simultaneous_positions: 1
+    order_type: market
+    margin_mode: isolated

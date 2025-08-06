@@ -80,4 +80,28 @@ class MratZscoreStrategyParams(abc.ABC, BaseModel):
         return values
 
 
-StrategyParams = T.Union[MratZscoreStrategyParams]
+class ListingBackrunStrategyParams(abc.ABC, BaseModel):
+    name: str = Field(default="listing_backrun", description="Strategy name")
+    ohlcv_timeframe: T.Literal["1m", "5m", "15m", "30m", "1h", "4h"] = Field(
+        default="1h", description="Timeframe for the OHLCV data"
+    )
+    ohlcv_window: int = Field(default=1, description="Depth for OHLCV data")
+    short_price_volatility_threshold: float = Field(
+        default=-20.0, description="Minimum price volatility for sell signal"
+    )
+    long_price_volatility_threshold: float = Field(
+        default=20.0, description="Minimum price volatility for buy signal"
+    )
+    short_btc_volatility_threshold: float = Field(
+        default=-0.3, description="Minimum BTC volatility for sell signal"
+    )
+    long_btc_volatility_threshold: float = Field(
+        default=0.3, description="Maximum BTC volatility for buy signal"
+    )
+    volume_usdt_btc_prop_threshold: float = Field(
+        default=0.5,
+        description="Minimum volume percentage of BTC volume for sell signal",
+    )
+
+
+StrategyParams = T.Union[MratZscoreStrategyParams, ListingBackrunStrategyParams]
