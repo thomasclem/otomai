@@ -1,5 +1,6 @@
 import typing as T
 import asyncio
+from datetime import datetime, timezone
 
 import pandas as pd
 from pandera.typing import DataFrame
@@ -42,6 +43,7 @@ class ListingBackrunStrategy(Strategy):
 
         df = pd.merge(df_candidate, df_btc, "left", "date")
         df["volume_usdt"] = (df["close"] + df["open"]) / 2 * df["volume"]
+        df["vol_open_low"] = (df["low"] - df["open"]) / df["open"] * 100
         df["volume_btc_usdt"] = (
             (df["close_btc"] + df["open_btc"]) / 2 * df["volume_btc"]
         )
@@ -61,9 +63,9 @@ class ListingBackrunStrategy(Strategy):
         short_btc_volatility_threshold: float,
         volume_usdt_btc_prop_threshold: float,
     ) -> bool:
-        below_price_drop_threshold = (row["low"] - row["open"]) / row[
-            "open"
-        ] * 100 <= short_price_volatility_threshold
+        below_price_drop_threshold = (
+            row["vol_open_low"] <= short_price_volatility_threshold
+        )
         above_btc_drop_threshold = row["btc_vol"] >= short_btc_volatility_threshold
         above_volume_usdt_btc_prop_threshold = (
             row["volume_usdt_btc_prop"] >= volume_usdt_btc_prop_threshold
@@ -82,9 +84,9 @@ class ListingBackrunStrategy(Strategy):
         long_btc_volatility_threshold: float,
         volume_usdt_btc_prop_threshold: float,
     ) -> bool:
-        above_price_jump_threshold = (row["low"] - row["open"]) / row[
-            "open"
-        ] * 100 >= long_price_volatility_threshold
+        above_price_jump_threshold = (
+            row["vol_open_low"] >= long_price_volatility_threshold
+        )
         below_btc_jump_threshold = row["btc_vol"] <= long_btc_volatility_threshold
         above_volume_usdt_btc_prop_threshold = (
             row["volume_usdt_btc_prop"] >= volume_usdt_btc_prop_threshold
@@ -99,30 +101,32 @@ class ListingBackrunStrategy(Strategy):
     async def _process_candidate_symbol(
         self,
         symbol: str,
-        ohlcv_tf: str,
-        ohlcv_window: int,
-        short_price_volatility_threshold: float,
-        long_price_volatility_threshold: float,
-        short_btc_volatility_threshold: float,
-        long_btc_volatility_threshold: float,
-        volume_usdt_btc_prop_threshold: float,
+        strategy_params: ListingBackrunStrategyParams,
         trading_params: TradingParams,
     ):
         df = self._fetch_symbol_data(
-            symbol=symbol, ohlcv_tf=ohlcv_tf, ohlcv_window=ohlcv_window
+            symbol=symbol,
+            ohlcv_tf=strategy_params.ohlcv_tf,
+            ohlcv_window=strategy_params.ohlcv_window,
         )
 
         while len(df) <= 2:
             df = self._fetch_symbol_data(
-                symbol=symbol, ohlcv_tf=ohlcv_tf, ohlcv_window=ohlcv_window
+                symbol=symbol,
+                ohlcv_tf=strategy_params.ohlcv_tf,
+                ohlcv_window=strategy_params.ohlcv_window,
             )
+
+            open_date_str = str(datetime.now(timezone.utc))
+            order = {}
+
             if self._is_sell_signal(
                 row=df.iloc[0],
-                short_price_volatility_threshold=short_price_volatility_threshold,
-                short_btc_volatility_threshold=short_btc_volatility_threshold,
-                volume_usdt_btc_prop_threshold=volume_usdt_btc_prop_threshold,
+                short_price_volatility_threshold=strategy_params.short_price_volatility_threshold,
+                short_btc_volatility_threshold=strategy_params.short_btc_volatility_threshold,
+                volume_usdt_btc_prop_threshold=strategy_params.volume_usdt_btc_prop_threshold,
             ):
-                self.exchange_service.open_future_order(
+                order = self.exchange_service.open_future_order(
                     symbol=symbol,
                     equity_trade_pct=trading_params.equity_trade_pct,
                     order_type=trading_params.order_type,
@@ -135,11 +139,11 @@ class ListingBackrunStrategy(Strategy):
 
             if self._is_buy_signal(
                 row=df.iloc[0],
-                long_price_volatility_threshold=long_price_volatility_threshold,
-                long_btc_volatility_threshold=long_btc_volatility_threshold,
-                volume_usdt_btc_prop_threshold=volume_usdt_btc_prop_threshold,
+                long_price_volatility_threshold=strategy_params.long_price_volatility_threshold,
+                long_btc_volatility_threshold=strategy_params.long_btc_volatility_threshold,
+                volume_usdt_btc_prop_threshold=strategy_params.volume_usdt_btc_prop_threshold,
             ):
-                self.exchange_service.open_future_order(
+                order = self.exchange_service.open_future_order(
                     symbol=symbol,
                     equity_trade_pct=trading_params.equity_trade_pct,
                     order_type=trading_params.order_type,
@@ -148,6 +152,22 @@ class ListingBackrunStrategy(Strategy):
                     leverage=trading_params.leverage,
                     take_profit_pct=trading_params.take_profit_pct,
                     stop_loss_pct=trading_params.stop_loss_pct,
+                )
+
+            if order:
+                await self.notifier_service.send_message(
+                    message=(
+                        f"### {self.strategy_params.name} ###\n\n"
+                        f"✅ Order successfully posted for {symbol}.\n\n"
+                        f"ℹ️ Order info: {order}.\n\n"
+                        f"⏭️ Start monitoring position opening.."
+                    )
+                )
+                asyncio.create_task(
+                    self.monitor_position(
+                        symbol=symbol,
+                        open_date=open_date_str,
+                    )
                 )
 
     async def run(self):
@@ -175,19 +195,16 @@ class ListingBackrunStrategy(Strategy):
                     )
 
                     for symbol in exchange_new_symbols:
-                        asyncio.create_task(
-                            self._process_candidate_symbol(
-                                symbol=symbol,
-                                ohlcv_tf=self.strategy_params.ohlcv_timeframe,
-                                ohlcv_window=self.strategy_params.ohlcv_window,
-                                short_price_volatility_threshold=self.strategy_params.short_price_volatility_threshold,
-                                long_price_volatility_threshold=self.strategy_params.long_price_volatility_threshold,
-                                short_btc_volatility_threshold=self.strategy_params.short_btc_volatility_threshold,
-                                long_btc_volatility_threshold=self.strategy_params.long_btc_volatility_threshold,
-                                volume_usdt_btc_prop_threshold=self.strategy_params.volume_usdt_btc_prop_threshold,
-                                trading_params=self.trading_params,
+                        if self.position_opening_available(
+                            self.trading_params.max_simultaneous_positions
+                        ):
+                            asyncio.create_task(
+                                self._process_candidate_symbol(
+                                    symbol=symbol,
+                                    strategy_params=self.strategy_params,
+                                    trading_params=self.trading_params,
+                                )
                             )
-                        )
 
             except Exception as e:
                 logger.error(f"Error in run loop: {e}")

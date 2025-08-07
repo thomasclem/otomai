@@ -4,6 +4,7 @@ import abc
 import asyncio
 import typing as T
 import re
+import time
 
 import pydantic as pdt
 
@@ -56,15 +57,30 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
         Exit method for context manager.
         """
 
-    async def monitor_position_opening(self, symbol):
+    def position_opening_available(self, max_simultaneous_positions: int) -> bool:
+        open_positions = len(self.exchange_service.session.fetch_positions())
+        open_orders = len(self.exchange_service.session.fetch_open_orders())
+        return open_positions + open_orders < max_simultaneous_positions
+
+    async def monitor_position_opening(self, symbol, order_timeout: int = 600):
         open_position = {}
+        start_time = time.time()
+
         while not open_position:
             open_position = self.exchange_service.session.fetch_position(symbol)
-            await asyncio.sleep(1)
+            if open_position:
+                await self.notifier_service.send_message(
+                    message=f"### {self.strategy_params.name} ### \n\n✅ Position successfully open for {symbol}."
+                )
+                return
 
-        await self.notifier_service.send_message(
-            message=f"### {self.strategy_params.name} ### \n\n Position successfully open for {symbol}."
-        )
+            if time.time() - start_time > order_timeout:
+                await self.notifier_service.send_message(
+                    message=f"### {self.strategy_params.name} ### \n\n⚠️ Timeout: Failed to open position for {symbol} within {order_timeout} seconds."
+                )
+                return
+
+            await asyncio.sleep(1)
 
     async def monitor_position_closing(
         self,
@@ -112,7 +128,7 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
                                 f"Position successfully closed for {symbol} with {position.net_profit}$ net profit"
                             )
                         )
-                        break
+                        return
                     except Exception as e:
                         logger.error(f"Failed to insert position for {symbol}: {e}")
                         raise RuntimeError(
