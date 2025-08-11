@@ -98,77 +98,90 @@ class ListingBackrunStrategy(Strategy):
             & above_volume_usdt_btc_prop_threshold
         )
 
+    def _check_signals(
+        self, row: pd.DataFrame, strategy_params: ListingBackrunStrategyParams
+    ) -> OrderSide:
+        if self._is_sell_signal(
+            row=row,
+            short_price_volatility_threshold=strategy_params.short_price_volatility_threshold,
+            short_btc_volatility_threshold=strategy_params.short_btc_volatility_threshold,
+            volume_usdt_btc_prop_threshold=strategy_params.volume_usdt_btc_prop_threshold,
+        ):
+            return OrderSide.SELL
+        elif self._is_buy_signal(
+            row=row,
+            long_price_volatility_threshold=strategy_params.long_price_volatility_threshold,
+            long_btc_volatility_threshold=strategy_params.long_btc_volatility_threshold,
+            volume_usdt_btc_prop_threshold=strategy_params.volume_usdt_btc_prop_threshold,
+        ):
+            return OrderSide.BUY
+        else:
+            return OrderSide.NONE
+
+    async def _process_signal(
+        self, symbol: str, signal: OrderSide, trading_params: TradingParams
+    ):
+        if signal != OrderSide.NONE:
+            open_date_str = str(datetime.now(timezone.utc))
+            order = self.exchange_service.open_future_order(
+                symbol=symbol,
+                equity_trade_pct=trading_params.equity_trade_pct,
+                order_type=trading_params.order_type,
+                order_side=signal,
+                margin_mode=trading_params.margin_mode,
+                leverage=trading_params.leverage,
+                take_profit_pct=trading_params.take_profit_pct,
+                stop_loss_pct=trading_params.stop_loss_pct,
+            )
+
+            await self.notifier_service.send_message(
+                message=(
+                    f"### {self.strategy_params.name} ###\n\n"
+                    f"✅ Order successfully posted for {symbol}.\n\n"
+                    f"ℹ️ Order info: {order}.\n\n"
+                    f"⏭️ Start monitoring position opening.."
+                )
+            )
+            asyncio.create_task(
+                self.monitor_position(
+                    symbol=symbol,
+                    open_date=open_date_str,
+                )
+            )
+            return
+        return
+
     async def _process_candidate_symbol(
         self,
         symbol: str,
         strategy_params: ListingBackrunStrategyParams,
         trading_params: TradingParams,
     ):
-        df = self._fetch_symbol_data(
-            symbol=symbol,
-            ohlcv_tf=strategy_params.ohlcv_tf,
-            ohlcv_window=strategy_params.ohlcv_window,
-        )
+        df = pd.DataFrame()
 
-        while len(df) <= 2:
+        while len(df) <= 1:
             df = self._fetch_symbol_data(
                 symbol=symbol,
-                ohlcv_tf=strategy_params.ohlcv_tf,
+                ohlcv_tf=strategy_params.ohlcv_timeframe,
                 ohlcv_window=strategy_params.ohlcv_window,
             )
 
-            open_date_str = str(datetime.now(timezone.utc))
-            order = {}
+            signal = self._check_signals(
+                row=df.iloc[0], strategy_params=strategy_params
+            )
 
-            if self._is_sell_signal(
-                row=df.iloc[0],
-                short_price_volatility_threshold=strategy_params.short_price_volatility_threshold,
-                short_btc_volatility_threshold=strategy_params.short_btc_volatility_threshold,
-                volume_usdt_btc_prop_threshold=strategy_params.volume_usdt_btc_prop_threshold,
-            ):
-                order = self.exchange_service.open_future_order(
-                    symbol=symbol,
-                    equity_trade_pct=trading_params.equity_trade_pct,
-                    order_type=trading_params.order_type,
-                    order_side=OrderSide.BUY,
-                    margin_mode=trading_params.margin_mode,
-                    leverage=trading_params.leverage,
-                    take_profit_pct=trading_params.take_profit_pct,
-                    stop_loss_pct=trading_params.stop_loss_pct,
-                )
+            await self._process_signal(
+                symbol=symbol, signal=signal, trading_params=trading_params
+            )
 
-            if self._is_buy_signal(
-                row=df.iloc[0],
-                long_price_volatility_threshold=strategy_params.long_price_volatility_threshold,
-                long_btc_volatility_threshold=strategy_params.long_btc_volatility_threshold,
-                volume_usdt_btc_prop_threshold=strategy_params.volume_usdt_btc_prop_threshold,
-            ):
-                order = self.exchange_service.open_future_order(
-                    symbol=symbol,
-                    equity_trade_pct=trading_params.equity_trade_pct,
-                    order_type=trading_params.order_type,
-                    order_side=OrderSide.SELL,
-                    margin_mode=trading_params.margin_mode,
-                    leverage=trading_params.leverage,
-                    take_profit_pct=trading_params.take_profit_pct,
-                    stop_loss_pct=trading_params.stop_loss_pct,
-                )
-
-            if order:
-                await self.notifier_service.send_message(
-                    message=(
-                        f"### {self.strategy_params.name} ###\n\n"
-                        f"✅ Order successfully posted for {symbol}.\n\n"
-                        f"ℹ️ Order info: {order}.\n\n"
-                        f"⏭️ Start monitoring position opening.."
-                    )
-                )
-                asyncio.create_task(
-                    self.monitor_position(
-                        symbol=symbol,
-                        open_date=open_date_str,
-                    )
-                )
+        await self.notifier_service.send_message(
+            message=(
+                f"### {self.strategy_params.name} ###\n\n"
+                f"Candidate final KPIs:\n"
+                f"{''.join(f'- {col}: {df.iloc[0][col]}' for col in df.columns)}"
+            )
+        )
+        return
 
     async def run(self):
         exchange_symbols = self.exchange_service.fetch_all_futures_symbol_names()
@@ -179,17 +192,17 @@ class ListingBackrunStrategy(Strategy):
                     self.exchange_service.fetch_all_futures_symbol_names()
                 )
                 exchange_new_symbols = list(
-                    set(exchange_update_symbols) - set(exchange_symbols[:-1])
+                    set(exchange_update_symbols) - set(exchange_symbols)
                 )
 
                 if exchange_new_symbols:
                     exchange_symbols = exchange_update_symbols
-                    # await self.notifier_service.send_message(
-                    #    message=(
-                    #        f"### {self.strategy_params.name} ###\n\n"
-                    #        f"New candidate symbols found: {''.join(exchange_new_symbols)}"
-                    #    )
-                    # )
+                    await self.notifier_service.send_message(
+                        message=(
+                            f"### {self.strategy_params.name} ###\n\n"
+                            f"New candidate symbols found: {''.join(exchange_new_symbols)}"
+                        )
+                    )
                     logger.info(
                         f"Candidates future symbols : {''.join(exchange_new_symbols)}"
                     )

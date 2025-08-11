@@ -29,7 +29,8 @@ SYMBOL_REGEX: re.Pattern = re.compile(r"^[A-Z0-9]+/[A-Z0-9]+(:[A-Z0-9]+)?$")
 class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
     KIND: str
 
-    symbol: str = pdt.Field(
+    symbol: T.Optional[str] = pdt.Field(
+        default=None,
         pattern=r"^[A-Z0-9]+/USDT:USDT$",
         description="Trading pair symbol in the format BASE/QUOTE[:EXCHANGE] (e.g., ETH/USDT:USDT)",
         strict=True,

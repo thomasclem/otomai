@@ -38,6 +38,11 @@ class TradingParams(abc.ABC, BaseModel):
         ge=0,
         le=100,
     )
+    order_timeout: int = Field(
+        default=3600,
+        description="Amount of seconds before cancelling the order if not filled",
+        ge=0,
+    )
 
     class Config:
         title = "Trading Parameters"

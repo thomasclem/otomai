@@ -1,5 +1,4 @@
 repos:
-  # Code Quality and Linting
   - repo: https://github.com/psf/black
     rev: 23.9.1
     hooks:
@@ -18,7 +17,6 @@ repos:
       - id: yamllint
         args: ["-c", ".yamllint"]
 
-  # Formatting and Style
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:

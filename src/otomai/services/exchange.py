@@ -239,19 +239,19 @@ class BitgetExchange(Exchange):
         stop_loss_pct: T.Optional[float] = None,
     ):
         if not price:
-            ticker = self.exchange_service.session.fetch_ticker(symbol=symbol)
+            ticker = self._session.fetch_ticker(symbol=symbol)
             price = float(ticker["info"]["lastPr"])
 
         amount = self.compute_open_order_amount_based_on_equity(
-            symbol, equity_trade_pct
+            equity_trade_pct=equity_trade_pct, price=price
         )
 
         if take_profit_pct:
             take_profit_price = utils.calculate_take_profit_price(
                 price,
                 order_side,
-                self.trading_params.take_profit_pct,
-                self.trading_params.leverage,
+                take_profit_pct,
+                leverage,
             )
         else:
             take_profit_price = None
@@ -260,8 +260,8 @@ class BitgetExchange(Exchange):
             stop_loss_price = utils.calculate_stop_loss_price(
                 price,
                 order_side,
-                self.trading_params.stop_loss_pct,
-                self.trading_params.leverage,
+                stop_loss_pct,
+                leverage,
             )
         else:
             stop_loss_price = None
