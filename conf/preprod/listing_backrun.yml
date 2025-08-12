@@ -1,9 +1,8 @@
 strategy:
   KIND: ListingBackrunStrategy
-  symbol: ETH/USDT:USDT
   strategy_params:
-    ohlcv_tf: 4h
-    ohlcv_window: 1
+    ohlcv_timeframe: 4h
+    ohlcv_window: 2
     short_price_volatility_threshold: -20.0
     long_price_volatility_threshold: 20.0
     short_btc_volatility_threshold: -0.3
@@ -21,7 +20,8 @@ strategy:
     equity_trade_pct: 100
     leverage: 1
     stop_loss_pct: 20
-    take_profit_pct: 50
+    take_profit_pct: 10
     max_simultaneous_positions: 1
     order_type: market
     margin_mode: isolated
+    order_timeout: 600
