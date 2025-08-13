@@ -1,11 +1,11 @@
 strategy:
   KIND: MratZscoreStrategy
-  symbol: DOGE/USDT:USDT
+  symbol: ETH/USDT:USDT
   strategy_params:
     fast_ma_length: 9
     slow_ma_length: 51
     filter_ma_length: 52
-    z_score_threshold: -2
+    z_score_threshold: -2.2
     tp_z_score_threshold: 2.0
     timeframe: 1h
   database_service:
@@ -24,3 +24,4 @@ strategy:
     max_simultaneous_positions: 1
     order_type: market
     margin_mode: isolated
+    order_timeout: 600

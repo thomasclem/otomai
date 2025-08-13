@@ -24,3 +24,11 @@ MratZscoreKpiSchema = OHLCVSchema.add_columns(
         "z_score_mrat": pa.Column(float, nullable=True, coerce=True),
     }
 )
+
+ListingBackrunKpiSchema = OHLCVSchema.add_columns(
+    {
+        "volume_usdt_btc_prop": pa.Column(float, nullable=False, coerce=True),
+        "btc_vol": pa.Column(float, nullable=False, coerce=True),
+        "vol_open_low": pa.Column(float, nullable=False, coerce=True),
+    }
+)

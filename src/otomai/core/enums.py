@@ -6,6 +6,7 @@ from enum import Enum
 class OrderSide(Enum):
     BUY = "buy"
     SELL = "sell"
+    NONE = "none"
 
 
 class OrderMarginMode(Enum):

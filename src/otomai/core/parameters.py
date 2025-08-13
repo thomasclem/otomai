@@ -38,6 +38,11 @@ class TradingParams(abc.ABC, BaseModel):
         ge=0,
         le=100,
     )
+    order_timeout: int = Field(
+        default=3600,
+        description="Amount of seconds before cancelling the order if not filled",
+        ge=0,
+    )
 
     class Config:
         title = "Trading Parameters"
@@ -48,7 +53,7 @@ class TradingParams(abc.ABC, BaseModel):
 # %% STRATEGY PARAMS
 
 
-class MratZscoreStrategyParams(abc.ABC, BaseModel):
+class MratZscoreStrategyParams(BaseModel):
     name: str = Field(default="mrat_zscore", description="Strategy name")
     fast_ma_length: int = Field(default=9, description="Fast moving average length.")
     slow_ma_length: int = Field(default=51, description="Slow moving average length.")
@@ -80,4 +85,28 @@ class MratZscoreStrategyParams(abc.ABC, BaseModel):
         return values
 
 
-StrategyParams = T.Union[MratZscoreStrategyParams]
+class ListingBackrunStrategyParams(BaseModel):
+    name: str = Field(default="listing_backrun", description="Strategy name")
+    ohlcv_timeframe: T.Literal["1m", "5m", "15m", "30m", "1h", "4h"] = Field(
+        default="1h", description="Timeframe for the OHLCV data"
+    )
+    ohlcv_window: int = Field(default=1, description="Depth for OHLCV data")
+    short_price_volatility_threshold: float = Field(
+        default=-20.0, description="Minimum price volatility for sell signal"
+    )
+    long_price_volatility_threshold: float = Field(
+        default=20.0, description="Minimum price volatility for buy signal"
+    )
+    short_btc_volatility_threshold: float = Field(
+        default=-0.3, description="Minimum BTC volatility for sell signal"
+    )
+    long_btc_volatility_threshold: float = Field(
+        default=0.3, description="Maximum BTC volatility for buy signal"
+    )
+    volume_usdt_btc_prop_threshold: float = Field(
+        default=0.5,
+        description="Minimum volume percentage of BTC volume for sell signal",
+    )
+
+
+StrategyParams = T.Union[MratZscoreStrategyParams, ListingBackrunStrategyParams]

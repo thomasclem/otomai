@@ -1,13 +1,13 @@
 strategy:
-  KIND: MratZscoreStrategy
-  symbol: ETH/USDT:USDT
+  KIND: ListingBackrunStrategy
   strategy_params:
-    fast_ma_length: 9
-    slow_ma_length: 51
-    filter_ma_length: 100
-    z_score_threshold: 2.22
-    tp_z_score_threshold: 2.0
-    timeframe: 1h
+    ohlcv_timeframe: 4h
+    ohlcv_window: 2
+    short_price_volatility_threshold: -20.0
+    long_price_volatility_threshold: 20.0
+    short_btc_volatility_threshold: -0.3
+    long_btc_volatility_threshold: 0.3
+    volume_usdt_btc_prop_threshold: 0.5
   database_service:
     KIND: DynamoDB
   exchange_service:
@@ -19,8 +19,8 @@ strategy:
   trading_params:
     equity_trade_pct: 100
     leverage: 1
-    stop_loss_pct: 6
-    take_profit_pct: 10
+    stop_loss_pct: 20
+    take_profit_pct: 50
     max_simultaneous_positions: 1
     order_type: market
     margin_mode: isolated

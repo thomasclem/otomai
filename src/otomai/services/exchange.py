@@ -8,6 +8,7 @@ from ccxt import bitget
 import pandas as pd
 from dotenv import load_dotenv
 
+from otomai.core import utils
 from otomai.core.enums import OrderSide, TradeSide, OrderMarginMode
 from otomai.logger import Logger
 
@@ -64,14 +65,6 @@ class Exchange(abc.ABC, pdt.BaseModel):
         """
         raise NotImplementedError("Subclasses must implement `initialize_session`.")
 
-    @abc.abstractmethod
-    def load_markets(self):
-        """
-        Load markets for the exchange.
-        Must be implemented by subclasses.
-        """
-        raise NotImplementedError("Subclasses must implement `load_markets`.")
-
     def is_authenticated(self) -> bool:
         """
         Check if the client is authenticated.
@@ -100,19 +93,6 @@ class BitgetExchange(Exchange):
         except Exception as e:
             logger.error(f"Failed to initialize Bitget session: {e}")
             raise
-
-    def load_markets(self):
-        """
-        Load market data from Bitget.
-        """
-        try:
-            if self._session is None:
-                raise RuntimeError("Session is not initialized.")
-            self._session.load_markets()
-            logger.info("Markets loaded successfully.")
-        except Exception as e:
-            logger.error(f"Error loading markets: {e}")
-            raise RuntimeError(f"Failed to load markets: {e}")
 
     def fetch_ohlcv_df(self, symbol: str, timeframe: str, window: int) -> pd.DataFrame:
         """
@@ -235,3 +215,88 @@ class BitgetExchange(Exchange):
             logger.info(f"Leverage set to {leverage} for {symbol}")
         except Exception as e:
             logger.error(f"Error setting leverage for {symbol}: {e}")
+
+    def compute_open_order_amount_based_on_equity(
+        self, equity_trade_pct: float, price: float
+    ) -> float:
+        balance = self._session.fetch_balance()
+        free_amount = balance["USDT"]["free"]
+        usdt_size = free_amount * equity_trade_pct / 100
+
+        return usdt_size / price
+
+    def open_future_order(
+        self,
+        symbol: str,
+        equity_trade_pct: float,
+        order_type: str,
+        order_side: OrderSide,
+        margin_mode: str,
+        leverage: int = 1,
+        price: T.Optional[float] = None,
+        reduce: T.Optional[bool] = False,
+        take_profit_pct: T.Optional[float] = None,
+        stop_loss_pct: T.Optional[float] = None,
+    ):
+        if not price:
+            ticker = self._session.fetch_ticker(symbol=symbol)
+            price = float(ticker["info"]["lastPr"])
+
+        amount = self.compute_open_order_amount_based_on_equity(
+            equity_trade_pct=equity_trade_pct, price=price
+        )
+
+        if take_profit_pct:
+            take_profit_price = utils.calculate_take_profit_price(
+                price,
+                order_side,
+                take_profit_pct,
+                leverage,
+            )
+        else:
+            take_profit_price = None
+
+        if stop_loss_pct:
+            stop_loss_price = utils.calculate_stop_loss_price(
+                price,
+                order_side,
+                stop_loss_pct,
+                leverage,
+            )
+        else:
+            stop_loss_price = None
+
+        try:
+            self.set_margin_mode_and_leverage(
+                symbol=symbol,
+                margin_mode=margin_mode,
+                leverage=leverage,
+            )
+            order = self.create_order(
+                symbol=symbol,
+                side=order_side,
+                amount=amount,
+                type=order_type,
+                margin_mode=margin_mode,
+                trade_side=TradeSide.OPEN,
+                take_profit_price=take_profit_price,
+                stop_loss_price=stop_loss_price,
+                reduce=reduce,
+            )
+            logger.info(f"Order placed successfully: {order}")
+
+            return order
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
+            raise
+
+    def fetch_all_futures_symbol_names(self):
+        exchange_market = self._session.load_markets(reload=True)
+        return [s for s in exchange_market.keys() if s.endswith(":USDT")]
+
+    def fetch_all_spot_symbol_name(self):
+        exchange_market = self._session.load_markets(reload=True)
+        return [s for s in exchange_market.keys() if s.endswith("/USDT")]
+
+
+ExchangeKind = T.Union[BitgetExchange]
