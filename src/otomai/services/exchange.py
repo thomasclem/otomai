@@ -1,5 +1,7 @@
 import abc
+import asyncio
 import os
+import time
 import typing as T
 
 import ccxt
@@ -94,40 +96,79 @@ class BitgetExchange(Exchange):
             logger.error(f"Failed to initialize Bitget session: {e}")
             raise
 
-    def fetch_ohlcv_df(self, symbol: str, timeframe: str, window: int) -> pd.DataFrame:
+    def fetch_ohlcv_df(
+        self,
+        symbol: str,
+        timeframe: str,
+        window: int,
+        max_retries: int = 20,
+        retry_delay: float = 5.0,
+    ) -> pd.DataFrame:
         """
-        Fetch OHLCV data from Bitget and return as a DataFrame.
+        Fetch OHLCV data from Bitget and return as a DataFrame with retry logic.
 
         Args:
             symbol (str): The trading pair or market symbol.
             timeframe (str): The timeframe for OHLCV data (e.g., "1m", "1h").
             window (int): The number of data points to fetch.
+            max_retries (int): Maximum number of retry attempts (default: 20).
+            retry_delay (float): Constant delay in seconds between retries (default: 5.0).
 
         Returns:
             pd.DataFrame: A DataFrame with OHLCV data.
+
+        Raises:
+            RuntimeError: If all retry attempts fail or session is not initialized.
         """
-        try:
-            if self._session is None:
-                raise RuntimeError("Session is not initialized.")
 
-            data = self._session.fetch_ohlcv(
-                symbol=symbol, timeframe=timeframe, limit=window
-            )
-            if not data:
-                logger.warning("No OHLCV data fetched.")
-                return pd.DataFrame()
+        for attempt in range(1, max_retries + 1):
+            try:
+                data = self._session.fetch_ohlcv(
+                    symbol=symbol, timeframe=timeframe, limit=window
+                )
 
-            columns = ["date", "open", "high", "low", "close", "volume"]
-            df = pd.DataFrame(data, columns=columns)
+                if not data:
+                    logger.warning(
+                        f"No OHLCV data fetched for {symbol} (attempt {attempt}/{max_retries})."
+                    )
+                    if attempt < max_retries:
+                        logger.info(f"Retrying in {retry_delay} seconds...")
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        return pd.DataFrame()
 
-            df["date"] = pd.to_datetime(df["date"], unit="ms", utc=True)
-            df["symbol"] = symbol
-            df.set_index("date", inplace=True)
-            return df
+                columns = ["date", "open", "high", "low", "close", "volume"]
+                df = pd.DataFrame(data, columns=columns)
 
-        except Exception as e:
-            logger.error(f"Failed to fetch OHLCV data for {symbol}: {e}")
-            raise RuntimeError(f"Error fetching OHLCV data: {e}")
+                df["date"] = pd.to_datetime(df["date"], unit="ms", utc=True)
+                df["symbol"] = symbol
+                df.set_index("date", inplace=True)
+
+                if attempt > 1:
+                    logger.info(
+                        f"Successfully fetched OHLCV data for {symbol} after {attempt} attempts"
+                    )
+
+                return df
+
+            except Exception as e:
+                logger.warning(
+                    f"Failed to fetch OHLCV data for {symbol} (attempt {attempt}/{max_retries}): {e}"
+                )
+
+                if attempt < max_retries:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                else:
+                    logger.error(
+                        f"Failed to fetch OHLCV data for {symbol} after {max_retries} attempts"
+                    )
+                    raise RuntimeError(
+                        f"Error fetching OHLCV data after {max_retries} retries: {e}"
+                    )
+
+        return pd.DataFrame()
 
     def create_order(
         self,
@@ -290,11 +331,20 @@ class BitgetExchange(Exchange):
             logger.error(f"An unexpected error occurred: {e}")
             raise
 
-    def fetch_all_futures_symbol_names(self):
-        exchange_market = self._session.load_markets(reload=True)
-        return [s for s in exchange_market.keys() if s.endswith(":USDT")]
+    async def fetch_all_futures_symbol_names(self):
+        future_symbol_names = []
+        while not future_symbol_names:
+            try:
+                exchange_market = self._session.load_markets(reload=True)
+                future_symbol_names = [
+                    s for s in exchange_market.keys() if s.endswith(":USDT")
+                ]
+            except Exception as e:
+                logger.error(f"Error during fetching market info: {e}")
+                await asyncio.sleep(5)
+        return future_symbol_names
 
-    def fetch_all_spot_symbol_name(self):
+    async def fetch_all_spot_symbol_name(self):
         exchange_market = self._session.load_markets(reload=True)
         return [s for s in exchange_market.keys() if s.endswith("/USDT")]
 
