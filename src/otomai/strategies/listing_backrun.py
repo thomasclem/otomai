@@ -158,8 +158,9 @@ class ListingBackrunStrategy(Strategy):
         trading_params: TradingParams,
     ):
         df = pd.DataFrame()
+        signal = OrderSide.NONE
 
-        while len(df) <= 1:
+        while len(df) <= 1 and signal == OrderSide.NONE:
             df = self._fetch_symbol_data(
                 symbol=symbol,
                 ohlcv_tf=strategy_params.ohlcv_timeframe,
@@ -184,12 +185,13 @@ class ListingBackrunStrategy(Strategy):
         return
 
     async def run(self):
-        exchange_symbols = self.exchange_service.fetch_all_futures_symbol_names()
+        exchange_symbols = await self.exchange_service.fetch_all_futures_symbol_names()
 
         while True:
+            await asyncio.sleep(10)
             try:
                 exchange_update_symbols = (
-                    self.exchange_service.fetch_all_futures_symbol_names()
+                    await self.exchange_service.fetch_all_futures_symbol_names()
                 )
                 exchange_new_symbols = list(
                     set(exchange_update_symbols) - set(exchange_symbols)
@@ -206,6 +208,8 @@ class ListingBackrunStrategy(Strategy):
                     logger.info(
                         f"Candidates future symbols : {''.join(exchange_new_symbols)}"
                     )
+
+                    await asyncio.sleep(60)
 
                     for symbol in exchange_new_symbols:
                         if self.position_opening_available(
