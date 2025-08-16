@@ -2,16 +2,21 @@ import logging
 
 
 class Logger(logging.Logger):
-    def __init__(self, name: str, level=logging.INFO):
+    def __init__(self, name: str, level=logging.INFO, strategy_name: str = None):
         super().__init__(name, level)
 
-        # Add a formatter
+        self.strategy_name = strategy_name
+
+        if strategy_name:
+            fmt = f"%(asctime)s - %(levelname)s - [{strategy_name}] - %(name)s - %(message)s"
+        else:
+            fmt = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+
         formatter = logging.Formatter(
-            fmt="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+            fmt=fmt,
             datefmt="%Y-%m-%d %H:%M:%S",
         )
 
-        # Add a stream handler
         handler = logging.StreamHandler()
         handler.setFormatter(formatter)
         self.addHandler(handler)

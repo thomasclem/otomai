@@ -7,8 +7,9 @@ import re
 import time
 
 import pydantic as pdt
+from pydantic import PrivateAttr
 
-from otomai.configs import logger
+from otomai.logger import Logger
 from otomai.core import utils
 from otomai.core.models import Position
 from otomai.services import (
@@ -41,11 +42,30 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
     strategy_params: StrategyParams = pdt.Field(...)
     trading_params: TradingParams = pdt.Field(...)
 
+    _logger: T.Optional[Logger] = PrivateAttr(default=None)
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Initialize logger with strategy name
+        self._logger = Logger(__name__, strategy_name=self.strategy_params.name)
+
+    @property
+    def logger(self) -> Logger:
+        """Get the strategy logger."""
+        if self._logger is None:
+            self._logger = Logger(__name__, strategy_name=self.strategy_params.name)
+        return self._logger
+
     def __enter__(self) -> "Strategy":
         """
         Enter method for context manager.
         """
-        # You can initialize resources here if needed
+        # Log strategy startup
+        self.logger.info(f"Starting strategy: {self.strategy_params.name}")
+        if self.symbol:
+            self.logger.info(f"Trading symbol: {self.symbol}")
+        self.logger.info(f"Strategy params: {self.strategy_params.model_dump()}")
+        self.logger.info(f"Trading params: {self.trading_params.model_dump()}")
         return self
 
     def __exit__(
@@ -57,6 +77,7 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
         """
         Exit method for context manager.
         """
+        self.logger.info(f"Stopping strategy: {self.strategy_params.name}")
 
     def position_opening_available(self, max_simultaneous_positions: int) -> bool:
         open_positions = len(self.exchange_service.session.fetch_positions())
@@ -120,7 +141,7 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
                             strategy_params=str(self.strategy_params),
                         )
                         self.database_service.insert_position(position)
-                        logger.info(
+                        self.logger.info(
                             f"Position for {symbol} saved successfully with net profit: {net_profit}"
                         )
                         await self.notifier_service.send_message(
@@ -131,12 +152,14 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
                         )
                         return
                     except Exception as e:
-                        logger.error(f"Failed to insert position for {symbol}: {e}")
+                        self.logger.error(
+                            f"Failed to insert position for {symbol}: {e}"
+                        )
                         raise RuntimeError(
                             f"Error inserting position for {symbol}"
                         ) from e
                 else:
-                    logger.info(
+                    self.logger.info(
                         f"No net profit available yet for {symbol}, retrying in {sleep_time} seconds..."
                     )
 
