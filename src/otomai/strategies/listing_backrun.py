@@ -9,9 +9,6 @@ from otomai.core.enums import OrderSide
 from otomai.core.parameters import ListingBackrunStrategyParams, TradingParams
 from otomai.core.schemas import ListingBackrunKpiSchema
 from otomai.strategies.base import Strategy
-from otomai.logger import Logger
-
-logger = Logger(__name__)
 
 # %% STRATEGY
 
@@ -21,7 +18,7 @@ class ListingBackrunStrategy(Strategy):
 
     strategy_params: ListingBackrunStrategyParams
 
-    def _fetch_symbol_data(
+    def _fetch_and_prepare_data(
         self, symbol: str, ohlcv_tf: str, ohlcv_window: int
     ) -> DataFrame[ListingBackrunKpiSchema]:
         df_candidate = self.exchange_service.fetch_ohlcv_df(
@@ -161,7 +158,7 @@ class ListingBackrunStrategy(Strategy):
         signal = OrderSide.NONE
 
         while len(df) <= 1 and signal == OrderSide.NONE:
-            df = self._fetch_symbol_data(
+            df = self._fetch_and_prepare_data(
                 symbol=symbol,
                 ohlcv_tf=strategy_params.ohlcv_timeframe,
                 ohlcv_window=strategy_params.ohlcv_window,
@@ -205,7 +202,7 @@ class ListingBackrunStrategy(Strategy):
                             f"New candidate symbols found: {''.join(exchange_new_symbols)}"
                         )
                     )
-                    logger.info(
+                    self.logger.info(
                         f"Candidates future symbols : {''.join(exchange_new_symbols)}"
                     )
 
@@ -224,5 +221,5 @@ class ListingBackrunStrategy(Strategy):
                             )
 
             except Exception as e:
-                logger.error(f"Error in run loop: {e}")
+                self.logger.error(f"Error in run loop: {e}")
                 raise Exception

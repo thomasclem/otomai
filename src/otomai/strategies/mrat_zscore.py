@@ -8,15 +8,11 @@ import pandas as pd
 import ta
 from pandera.typing import DataFrame
 
-from otomai.core.enums import OrderSide, TradeSide, OrderType
-from otomai.core import utils
-from otomai.core.parameters import MratZscoreStrategyParams
+from otomai.core.enums import OrderSide, TradeSide
+from otomai.core.parameters import MratZscoreStrategyParams, TradingParams
 from otomai.core.schemas import OHLCVSchema, MratZscoreKpiSchema
 from otomai.core.indicators import MRAT
-from otomai.logger import Logger
 from otomai.strategies.base import Strategy
-
-logger = Logger(__name__)
 
 # %% STRATEGY
 
@@ -26,30 +22,51 @@ class MratZscoreStrategy(Strategy):
 
     strategy_params: MratZscoreStrategyParams
 
+    @staticmethod
     def _create_indicators(
-        self, df: DataFrame[OHLCVSchema]
+        df: DataFrame[OHLCVSchema],
+        slow_ma_length: int,
+        fast_ma_length: int,
+        filter_ma_length: int,
     ) -> DataFrame[MratZscoreKpiSchema]:
         mrat = MRAT(
-            self.strategy_params.slow_ma_length,
-            self.strategy_params.fast_ma_length,
+            slow_ma_length,
+            fast_ma_length,
             df["close"],
         )
         df["filter_ma"] = ta.trend.sma_indicator(
-            close=df["close"], window=self.strategy_params.filter_ma_length
+            close=df["close"], window=filter_ma_length
         )
-        df["slow_ma"] = ta.trend.sma_indicator(
-            close=df["close"], window=self.strategy_params.slow_ma_length
-        )
+        df["slow_ma"] = ta.trend.sma_indicator(close=df["close"], window=slow_ma_length)
         df["mrat"] = mrat.calculate_mrat()
         df["mean_mrat"] = ta.trend.sma_indicator(
-            close=df["mrat"], window=self.strategy_params.slow_ma_length
+            close=df["mrat"], window=slow_ma_length
         )
-        df["stdev_mrat"] = (
-            df["mrat"].rolling(self.strategy_params.slow_ma_length).std(ddof=0)
-        )
+        df["stdev_mrat"] = df["mrat"].rolling(slow_ma_length).std(ddof=0)
         df["z_score_mrat"] = (df["mrat"] - df["mean_mrat"]) / df["stdev_mrat"]
 
         return df
+
+    def _fetch_and_prepare_data(
+        self,
+        symbol: str,
+        ohlcv_timeframe: str,
+        ohlcv_window: int,
+        strategy_params: MratZscoreStrategyParams,
+    ) -> DataFrame[MratZscoreKpiSchema]:
+        df = self.exchange_service.fetch_ohlcv_df(
+            symbol=symbol,
+            timeframe=ohlcv_timeframe,
+            window=ohlcv_window,
+        )
+        df = OHLCVSchema.validate(df)
+
+        return self._create_indicators(
+            df=df,
+            slow_ma_length=strategy_params.slow_ma_length,
+            fast_ma_length=strategy_params.fast_ma_length,
+            filter_ma_length=strategy_params.filter_ma_length,
+        )
 
     @staticmethod
     def _is_buy_signal(
@@ -89,8 +106,6 @@ class MratZscoreStrategy(Strategy):
         df: pd.DataFrame,
         z_score_lookback_window: int,
         z_score_threshold: float,
-        position_percentage: float,
-        tp_z_score_threshold: float,
     ) -> bool:
         """
         Check if sell conditions are met.
@@ -98,8 +113,6 @@ class MratZscoreStrategy(Strategy):
         Args:
             df: DataFrame with OHLCV data and indicators
             z_score_threshold: Z-score threshold for selling
-            position_percentage: Current position percentage
-            tp_z_score_threshold: Take profit z-score threshold
 
         Returns:
             True if sell conditions are met
@@ -112,46 +125,52 @@ class MratZscoreStrategy(Strategy):
             )
             > 0
         )
-        position_condition = position_percentage >= tp_z_score_threshold
         candle_condition = df.iloc[-2]["high"] < df.iloc[-3]["high"]
 
-        return above_z_score_threshold and position_condition and candle_condition
+        return above_z_score_threshold and candle_condition
 
-    def _get_order_creation_amount(self, equity_trade_pct: float) -> float:
-        try:
-            balance = self.exchange_service.session.fetch_balance()
-            free_amount = balance["USDT"]["free"]
-            return free_amount * equity_trade_pct / 100
-        except Exception as e:
-            logger.error(f"Error calculating new position amount: {e}")
-            return 0.0
-
-    def _should_open_position(
+    def _check_signals(
         self,
         df: DataFrame[MratZscoreKpiSchema],
-        z_score_lookback_window: int,
-        z_score_threshold: float,
-    ) -> bool:
-        """
-        Check if position should be opened based on new logic.
-
-        Args:
-            df: DataFrame with indicators
-            z_score_lookback_window: Window size for z-score threshold check
-
-        Returns:
-            True if position should be opened
-        """
-        if (
-            len(self.exchange_service.session.fetch_positions(symbols=[self.symbol]))
-            > 0
+        strategy_params: MratZscoreStrategyParams,
+    ) -> OrderSide:
+        if self._is_sell_signal(
+            df=df,
+            z_score_lookback_window=strategy_params.z_score_lookback_window,
+            z_score_threshold=strategy_params.z_score_threshold_sell,
         ):
-            return False
+            return OrderSide.SELL
+        elif self._is_buy_signal(
+            df=df,
+            z_score_lookback_window=strategy_params.z_score_lookback_window,
+            z_score_threshold=strategy_params.z_score_threshold_buy,
+        ):
+            return OrderSide.BUY
 
-        if len(self.exchange_service.session.fetch_open_orders(symbol=self.symbol)) > 0:
-            return False
+        return OrderSide.NONE
 
-        return self._is_buy_signal(df, z_score_threshold, z_score_lookback_window)
+    def _process_signal(
+        self, symbol: str, signal: OrderSide, trading_params: TradingParams
+    ):
+        if self.position_opening_available(
+            max_simultaneous_positions=trading_params.max_simultaneous_positions
+        ):
+            if (signal == OrderSide.BUY and trading_params.long_enabled) or (
+                signal == OrderSide.SELL and trading_params.short_enabled
+            ):
+                open_date_str = str(datetime.now(timezone.utc))
+                order = self.exchange_service.open_future_order(
+                    symbol=symbol,
+                    equity_trade_pct=trading_params.equity_trade_pct,
+                    order_type=trading_params.order_type,
+                    order_side=signal,
+                    margin_mode=trading_params.margin_mode,
+                    leverage=trading_params.leverage,
+                    take_profit_pct=trading_params.take_profit_pct,
+                    stop_loss_pct=trading_params.stop_loss_pct,
+                )
+                print(order, open_date_str)
+        return
 
     def _should_close_position(
         self,
@@ -179,64 +198,11 @@ class MratZscoreStrategy(Strategy):
         if len(self.exchange_service.session.fetch_open_orders(symbol=self.symbol)) > 0:
             return False
 
-        position_percentage = float(position.get("percentage", 0.0))
-
         return self._is_sell_signal(
             df,
             z_score_lookback_window,
             z_score_threshold,
-            position_percentage,
-            tp_z_score_threshold,
         )
-
-    def _open_position_order(
-        self,
-        symbol: str,
-        order_side: OrderSide,
-        order_type: str,
-        margin_mode: str,
-        reduce: bool,
-    ):
-        ticker = self.exchange_service.session.fetch_ticker(symbol=symbol)
-        last_price = float(ticker["info"]["lastPr"])
-        size = self._get_order_creation_amount(self.trading_params.equity_trade_pct)
-        amount = size / last_price
-
-        take_profit_price = utils.calculate_take_profit_price(
-            last_price,
-            order_side,
-            self.trading_params.take_profit_pct,
-            self.trading_params.leverage,
-        )
-        stop_loss_price = utils.calculate_stop_loss_price(
-            last_price,
-            order_side,
-            self.trading_params.stop_loss_pct,
-            self.trading_params.leverage,
-        )
-        try:
-            self.exchange_service.set_margin_mode_and_leverage(
-                symbol=symbol,
-                margin_mode=self.trading_params.margin_mode,
-                leverage=self.trading_params.leverage,
-            )
-            order = self.exchange_service.create_order(
-                symbol=symbol,
-                side=order_side,
-                amount=amount,
-                type=order_type,
-                margin_mode=margin_mode,
-                trade_side=TradeSide.OPEN,
-                take_profit_price=take_profit_price,
-                stop_loss_price=stop_loss_price,
-                reduce=reduce,
-            )
-            logger.info(f"Order placed successfully: {order}")
-
-            return order
-        except Exception as e:
-            logger.error(f"An unexpected error occurred: {e}")
-            raise
 
     def _close_position_order(
         self, symbol: str, order_type: str, margin_mode: str
@@ -255,69 +221,21 @@ class MratZscoreStrategy(Strategy):
     async def run(self):
         while True:
             try:
-                # Fetch data
-                df = self.exchange_service.fetch_ohlcv_df(
+                df = self._fetch_and_prepare_data(
                     symbol=self.symbol,
-                    timeframe=self.strategy_params.timeframe,
-                    window=200,
+                    ohlcv_timeframe=self.strategy_params.timeframe,
+                    ohlcv_window=self.strategy_params.filter_ma_length + 1,
+                    strategy_params=self.strategy_params,
                 )
-                df = OHLCVSchema.validate(df)
 
-                if df.empty:
-                    logger.warning("No data fetched from the exchange. Retrying...")
-                    await asyncio.sleep(1)
-                    continue
+                signal = self._check_signals(
+                    df=df, strategy_params=self.strategy_params
+                )
 
-                # Create indicators
-                df_kpis = self._create_indicators(df)
-                current_row = df_kpis.iloc[-1]
-
-                # Check signals with new logic
-                if self._should_open_position(
-                    df=df_kpis,
-                    z_score_lookback_window=self.strategy_params.z_score_lookback_window,
-                    z_score_threshold=self.strategy_params.z_score_threshold_buy,
-                ):
-                    logger.info(
-                        f"Buy signal detected for {self.symbol}. Z-Score: {current_row['z_score_mrat']}"
-                    )
-                    open_date_str = str(datetime.now(timezone.utc))
-                    self._open_position_order(
-                        symbol=self.symbol,
-                        order_side=OrderSide.BUY,
-                        order_type=self.trading_params.order_type,
-                        margin_mode=self.trading_params.margin_mode,
-                        reduce=False,
-                    )
-                    asyncio.create_task(
-                        self.monitor_position(
-                            symbol=self.symbol,
-                            open_date=open_date_str,
-                        )
-                    )
-                elif self._should_close_position(
-                    symbol=self.symbol,
-                    z_score_lookback_window=self.strategy_params.z_score_lookback_window,
-                    z_score_threshold=self.strategy_params.z_score_threshold_sell,
-                    tp_z_score_threshold=self.strategy_params.tp_z_score_threshold,
-                    df=df_kpis,
-                ):
-                    logger.info(
-                        f"Sell signal detected for {self.symbol}. Z-Score: {current_row['z_score_mrat']}"
-                    )
-                    logger.info("Closing position..")
-                    self._close_position_order(
-                        symbol=self.symbol,
-                        order_type=OrderType.MARKET.value,
-                        margin_mode=self.trading_params.margin_mode,
-                    )
-                else:
-                    logger.info(
-                        f"No signal for {self.symbol}. Z-Score: {current_row['z_score_mrat']:.4f}"
-                    )
+                print(signal)
 
                 await asyncio.sleep(60)
 
             except Exception as e:
-                logger.error(f"Error in MRATStrategy run loop: {e}")
+                self.logger.error(f"Error in run loop: {e}")
                 await asyncio.sleep(60)
