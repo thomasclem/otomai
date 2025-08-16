@@ -5,7 +5,8 @@ import typing as T
 
 from pydantic import BaseModel, Field, model_validator
 
-from otomai.core.enums import OrderType, OrderMarginMode
+from otomai.core.enums import OrderType, OrderMarginMode, OHLCVTimeframe
+
 
 # %% TRADING PARAMS
 
@@ -15,6 +16,12 @@ class TradingParams(abc.ABC, BaseModel):
     Model for trading parameters configuration.
     """
 
+    long_enabled: bool = Field(
+        default=True, description="Is strategy allowed to open long"
+    )
+    short_enabled: bool = Field(
+        default=False, description="Is strategy allowed to open short"
+    )
     leverage: int = Field(default=1, description="Leverage to be applied in trading.")
     stop_loss_pct: float = Field(
         default=6, description="Stop loss percentage (e.g., 6 for 6%).", ge=0, le=100
@@ -73,8 +80,8 @@ class MratZscoreStrategyParams(BaseModel):
         default=2.0,
         description="Take profit percentage if z_score threshold is overcome.",
     )
-    timeframe: T.Literal["1m", "5m", "15m", "30m", "1h", "4h"] = Field(
-        default="1h", description="Timeframe symbol"
+    timeframe: str = Field(
+        default=OHLCVTimeframe.ONE_HOUR.value, description="Timeframe symbol"
     )
 
     @model_validator(mode="before")
@@ -93,8 +100,9 @@ class MratZscoreStrategyParams(BaseModel):
 
 class ListingBackrunStrategyParams(BaseModel):
     name: str = Field(default="listing_backrun", description="Strategy name")
-    ohlcv_timeframe: T.Literal["1m", "5m", "15m", "30m", "1h", "4h"] = Field(
-        default="1h", description="Timeframe for the OHLCV data"
+    ohlcv_timeframe: str = Field(
+        default=OHLCVTimeframe.ONE_HOUR.value,
+        description="Timeframe for the OHLCV data",
     )
     ohlcv_window: int = Field(default=1, description="Depth for OHLCV data")
     short_price_volatility_threshold: float = Field(
