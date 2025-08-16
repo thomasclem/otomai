@@ -52,21 +52,70 @@ class MratZscoreStrategy(Strategy):
         return df
 
     @staticmethod
-    def _is_buy_signal(row: pd.Series, z_score_threshold: float) -> bool:
-        return (row["z_score_mrat"] <= -z_score_threshold) and (
-            row["filter_ma"] < row["slow_ma"]
+    def _is_buy_signal(
+        df: pd.DataFrame, z_score_threshold: float, z_score_lookback_window: int
+    ) -> bool:
+        """
+        Check if buy conditions are met.
+
+        Args:
+            df: DataFrame with OHLCV data and indicators
+            z_score_threshold: Z-score threshold value (positive, will be negated)
+            z_score_lookback_window: Number of candles to look back for z-score threshold
+
+        Returns:
+            True if buy conditions are met
+        """
+        under_z_score_threshold = (
+            len(
+                df.iloc[-z_score_lookback_window:].loc[
+                    df["z_score_mrat"] <= -z_score_threshold
+                ]
+            )
+            > 0
         )
+
+        has_rebound = (
+            df.iloc[-2]["close"] > df.iloc[-3]["open"]
+            and df.iloc[-2]["high"] > df.iloc[-3]["high"]
+        )
+
+        filter_ma_under_slow_ma = df.iloc[-1]["filter_ma"] < df.iloc[-1]["slow_ma"]
+
+        return under_z_score_threshold and has_rebound and filter_ma_under_slow_ma
 
     @staticmethod
     def _is_sell_signal(
-        row: pd.Series,
+        df: pd.DataFrame,
+        z_score_lookback_window: int,
         z_score_threshold: float,
         position_percentage: float,
         tp_z_score_threshold: float,
     ) -> bool:
-        return (row["z_score_mrat"] >= z_score_threshold) and (
-            position_percentage >= tp_z_score_threshold
+        """
+        Check if sell conditions are met.
+
+        Args:
+            df: DataFrame with OHLCV data and indicators
+            z_score_threshold: Z-score threshold for selling
+            position_percentage: Current position percentage
+            tp_z_score_threshold: Take profit z-score threshold
+
+        Returns:
+            True if sell conditions are met
+        """
+        above_z_score_threshold = (
+            len(
+                df.iloc[-z_score_lookback_window:].loc[
+                    df["z_score_mrat"] >= z_score_threshold
+                ]
+            )
+            > 0
         )
+        position_condition = position_percentage >= tp_z_score_threshold
+        candle_condition = df.iloc[-2]["high"] < df.iloc[-3]["high"]
+
+        return above_z_score_threshold and position_condition and candle_condition
 
     def _get_order_creation_amount(self, equity_trade_pct: float) -> float:
         try:
@@ -77,38 +126,68 @@ class MratZscoreStrategy(Strategy):
             logger.error(f"Error calculating new position amount: {e}")
             return 0.0
 
-    def _should_open_position(self, current_row: pd.Series, z_score_threshold: float):
-        return (
-            self._is_buy_signal(current_row, z_score_threshold)
-            # open if no position exist
-            and len(
-                self.exchange_service.session.fetch_positions(symbols=[self.symbol])
-            )
-            == 0
-            # open if no creation order exist
-            and len(self.exchange_service.session.fetch_open_orders(symbol=self.symbol))
-            == 0
-        )
+    def _should_open_position(
+        self,
+        df: DataFrame[MratZscoreKpiSchema],
+        z_score_lookback_window: int,
+        z_score_threshold: float,
+    ) -> bool:
+        """
+        Check if position should be opened based on new logic.
+
+        Args:
+            df: DataFrame with indicators
+            z_score_lookback_window: Window size for z-score threshold check
+
+        Returns:
+            True if position should be opened
+        """
+        if (
+            len(self.exchange_service.session.fetch_positions(symbols=[self.symbol]))
+            > 0
+        ):
+            return False
+
+        if len(self.exchange_service.session.fetch_open_orders(symbol=self.symbol)) > 0:
+            return False
+
+        return self._is_buy_signal(df, z_score_threshold, z_score_lookback_window)
 
     def _should_close_position(
         self,
         symbol: str,
-        current_row: pd.Series,
+        z_score_lookback_window: int,
         z_score_threshold: float,
         tp_z_score_threshold: float,
-    ):
+        df: DataFrame[MratZscoreKpiSchema],
+    ) -> bool:
+        """
+        Check if position should be closed based on new logic.
+
+        Args:
+            symbol: Trading symbol
+            df: DataFrame with indicators
+
+        Returns:
+            True if position should be closed
+        """
         position = self.exchange_service.session.fetch_position(symbol=symbol)
-        if (position["unrealizedPnl"]) and (
-            len(self.exchange_service.session.fetch_open_orders(symbol=self.symbol))
-            == 0
-        ):
-            return self._is_sell_signal(
-                row=current_row,
-                z_score_threshold=z_score_threshold,
-                position_percentage=float(position.get("percentage", 0.0)),
-                tp_z_score_threshold=tp_z_score_threshold,
-            )
-        return False
+
+        if not position or not position.get("unrealizedPnl"):
+            return False
+
+        if len(self.exchange_service.session.fetch_open_orders(symbol=self.symbol)) > 0:
+            return False
+
+        position_percentage = float(position.get("percentage", 0.0))
+
+        return self._is_sell_signal(
+            df,
+            z_score_lookback_window,
+            z_score_threshold,
+            position_percentage,
+            tp_z_score_threshold,
+        )
 
     def _open_position_order(
         self,
@@ -193,9 +272,11 @@ class MratZscoreStrategy(Strategy):
                 df_kpis = self._create_indicators(df)
                 current_row = df_kpis.iloc[-1]
 
-                # Check signals
+                # Check signals with new logic
                 if self._should_open_position(
-                    current_row, self.strategy_params.z_score_threshold
+                    df=df_kpis,
+                    z_score_lookback_window=self.strategy_params.z_score_lookback_window,
+                    z_score_threshold=self.strategy_params.z_score_threshold_buy,
                 ):
                     logger.info(
                         f"Buy signal detected for {self.symbol}. Z-Score: {current_row['z_score_mrat']}"
@@ -216,9 +297,10 @@ class MratZscoreStrategy(Strategy):
                     )
                 elif self._should_close_position(
                     symbol=self.symbol,
-                    current_row=current_row,
-                    z_score_threshold=self.strategy_params.z_score_threshold,
+                    z_score_lookback_window=self.strategy_params.z_score_lookback_window,
+                    z_score_threshold=self.strategy_params.z_score_threshold_sell,
                     tp_z_score_threshold=self.strategy_params.tp_z_score_threshold,
+                    df=df_kpis,
                 ):
                     logger.info(
                         f"Sell signal detected for {self.symbol}. Z-Score: {current_row['z_score_mrat']}"
@@ -231,7 +313,7 @@ class MratZscoreStrategy(Strategy):
                     )
                 else:
                     logger.info(
-                        f"No signal for {self.symbol}. Z-Score: {current_row['z_score_mrat']}"
+                        f"No signal for {self.symbol}. Z-Score: {current_row['z_score_mrat']:.4f}"
                     )
 
                 await asyncio.sleep(60)
