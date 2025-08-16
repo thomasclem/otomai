@@ -60,8 +60,14 @@ class MratZscoreStrategyParams(BaseModel):
     filter_ma_length: int = Field(
         default=100, description="Filter moving average length."
     )
-    z_score_threshold: float = Field(
-        default=2.22, description="Fast moving average length."
+    z_score_threshold_buy: float = Field(
+        default=2.5, description="Threshold of the MRAT Z score to buy."
+    )
+    z_score_threshold_sell: float = Field(
+        default=2.0, description="Threshold of the MRAT Z score to sell."
+    )
+    z_score_lookback_window: int = Field(
+        default=10, description="MRAT Z-score lookback window"
     )
     tp_z_score_threshold: float = Field(
         default=2.0,
