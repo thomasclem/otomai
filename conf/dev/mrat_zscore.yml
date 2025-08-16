@@ -4,8 +4,10 @@ strategy:
   strategy_params:
     fast_ma_length: 9
     slow_ma_length: 51
-    filter_ma_length: 52
-    z_score_threshold: -2.2
+    filter_ma_length: 60
+    z_score_threshold_buy: 0.5
+    z_score_threshold_sell: 1.0
+    z_score_lookback_window: 10
     tp_z_score_threshold: 2.0
     timeframe: 1h
   database_service:
@@ -17,10 +19,10 @@ strategy:
     KIND: Telegram
     chat_id: 5609154988
   trading_params:
-    equity_trade_pct: 50
+    equity_trade_pct: 100
     leverage: 1
-    stop_loss_pct: 1
-    take_profit_pct: 1
+    stop_loss_pct: 2
+    take_profit_pct: 3
     max_simultaneous_positions: 1
     order_type: market
     margin_mode: isolated

@@ -5,7 +5,9 @@ strategy:
     fast_ma_length: 9
     slow_ma_length: 51
     filter_ma_length: 100
-    z_score_threshold: 2.22
+    z_score_threshold_buy: 2.5
+    z_score_threshold_sell: 2.0
+    z_score_lookback_window: 10
     tp_z_score_threshold: 2.0
     timeframe: 1h
   database_service:
@@ -19,8 +21,8 @@ strategy:
   trading_params:
     equity_trade_pct: 100
     leverage: 1
-    stop_loss_pct: 6
-    take_profit_pct: 10
+    stop_loss_pct: 2
+    take_profit_pct: 3
     max_simultaneous_positions: 1
     order_type: market
     margin_mode: isolated
