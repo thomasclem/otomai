@@ -44,21 +44,33 @@ class ListingBackrunStrategy(Strategy):
         df = pd.merge(df_candidate, df_btc, "left", "date")
         df["volume_usdt"] = (df["close"] + df["open"]) / 2 * df["volume"]
         df["vol_open_low"] = (df["low"] - df["open"]) / df["open"] * 100
+        df["vol_open_high"] = (df["high"] - df["open"]) / df["open"] * 100
+        df["vol_high_low"] = (df["high"] - df["low"]) / df["low"] * 100
         df["volume_btc_usdt"] = (
             (df["close_btc"] + df["open_btc"]) / 2 * df["volume_btc"]
         )
         df["volume_usdt_btc_prop"] = df["volume_usdt"] / df["volume_btc_usdt"] * 100
         df["btc_vol"] = (df["close_btc"] - df["open_btc"]) / df["open_btc"] * 100
         df.set_index("date", inplace=True, drop=True)
+        df_wo_ghost_candles = df.loc[df["vol_high_low"] >= 0.5]
 
-        return df.drop(
-            ["volume_btc", "open_btc", "close_btc", "volume_usdt", "volume_btc_usdt"],
-            axis=1,
-        )
+        if not df_wo_ghost_candles.empty:
+            return df_wo_ghost_candles.drop(
+                [
+                    "volume_btc",
+                    "open_btc",
+                    "close_btc",
+                    "volume_usdt",
+                    "volume_btc_usdt",
+                    "vol_high_low",
+                ],
+                axis=1,
+            )
+        return pd.DataFrame()
 
     @staticmethod
     def _is_sell_signal(
-        row: pd.DataFrame,
+        row: pd.Series,
         short_price_volatility_threshold: float,
         short_btc_volatility_threshold: float,
         volume_usdt_btc_prop_threshold: float,
@@ -79,13 +91,13 @@ class ListingBackrunStrategy(Strategy):
 
     @staticmethod
     def _is_buy_signal(
-        row: pd.DataFrame,
+        row: pd.Series,
         long_price_volatility_threshold: float,
         long_btc_volatility_threshold: float,
         volume_usdt_btc_prop_threshold: float,
     ) -> bool:
         above_price_jump_threshold = (
-            row["vol_open_low"] >= long_price_volatility_threshold
+            row["vol_open_high"] >= long_price_volatility_threshold
         )
         below_btc_jump_threshold = row["btc_vol"] <= long_btc_volatility_threshold
         above_volume_usdt_btc_prop_threshold = (
@@ -99,7 +111,7 @@ class ListingBackrunStrategy(Strategy):
         )
 
     def _check_signals(
-        self, row: pd.DataFrame, strategy_params: ListingBackrunStrategyParams
+        self, row: pd.Series, strategy_params: ListingBackrunStrategyParams
     ) -> OrderSide:
         if self._is_sell_signal(
             row=row,
