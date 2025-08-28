@@ -210,6 +210,7 @@ class BitgetExchange(Exchange):
             )
         except ccxt.ExchangeError as e:
             logger.error(f"ExchangeError occurred: {e}")
+            raise
         except Exception as e:
             logger.error(f"An unexpected error occurred: {e}")
             raise
