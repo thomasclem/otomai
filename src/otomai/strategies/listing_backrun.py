@@ -190,8 +190,15 @@ class ListingBackrunStrategy(Strategy):
         await self.notifier_service.send_message(
             message=(
                 f"### {self.strategy_params.name} ###\n\n"
-                f"Candidate final KPIs:\n"
-                f"{''.join(f'- {col}: {df.iloc[0][col]}' for col in df.columns)}"
+                f"Candidate {symbol} final KPIs:\n"
+                f"- Open : {df.iloc[0]['open']}" + "\n"
+                f"- Close : {df.iloc[0]['close']}" + "\n"
+                f"- High : {df.iloc[0]['high']}" + "\n"
+                f"- Low : {df.iloc[0]['low']}" + "\n"
+                f"- Volatility (Open-Low) : {df.iloc[0]['vol_open_low']}" + "\n"
+                f"- Volatility (Open-High) : {df.iloc[0]['vol_open_high']}" + "\n"
+                f"- BTC Volatility (Open-Close) : {df.iloc[0]['btc_vol']}" + "\n"
+                f"- BTC Volume proportion : {df.iloc[0]['volume_usdt_btc_prop']}"
             )
         )
         return
@@ -214,11 +221,11 @@ class ListingBackrunStrategy(Strategy):
                     await self.notifier_service.send_message(
                         message=(
                             f"### {self.strategy_params.name} ###\n\n"
-                            f"New candidate symbols found: {''.join(exchange_new_symbols)}"
+                            f"New candidate symbols found: {', '.join(exchange_new_symbols)}"
                         )
                     )
                     logger.info(
-                        f"Candidates future symbols : {''.join(exchange_new_symbols)}"
+                        f"Candidates future symbols : {', '.join(exchange_new_symbols)}"
                     )
 
                     await asyncio.sleep(60)

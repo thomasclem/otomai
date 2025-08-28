@@ -3,6 +3,7 @@ import os
 import typing as T
 
 import telegram
+from telegram.request import HTTPXRequest
 import pydantic as pdt
 
 
@@ -22,14 +23,38 @@ class TelegramNotifier(Notifier):
     KIND: T.Literal["Telegram"] = "Telegram"
 
     chat_id: T.Union[str, int] = "5609154988"
-    bot: T.Any = telegram.Bot(token=os.getenv(f"{KIND.upper()}_API_KEY"))
+    bot: T.Any = None
+
+    def __init__(self, **data):
+        super().__init__(**data)
+
+        request_config = HTTPXRequest(
+            connection_pool_size=20,
+            pool_timeout=60.0,
+        )
+
+        self.bot = telegram.Bot(
+            token=os.getenv(f"{self.KIND.upper()}_API_KEY"), request=request_config
+        )
 
     async def send_message(self, message: str):
-        await self.bot.send_message(chat_id=self.chat_id, text=message)
+        try:
+            await self.bot.send_message(chat_id=self.chat_id, text=message)
+        except telegram.error.TimedOut:
+            pass
+        except Exception as e:
+            print(f"Telegram error: {e}")
 
     async def send_image(self, image, message: str):
         """
         Send the notification message
         :return:
         """
-        await self.bot.send_photo(chat_id=self.chat_id, photo=image, caption=message)
+        try:
+            await self.bot.send_photo(
+                chat_id=self.chat_id, photo=image, caption=message
+            )
+        except telegram.error.TimedOut:
+            pass
+        except Exception as e:
+            print(f"Telegram error: {e}")
