@@ -43,6 +43,16 @@ class TradingParams(abc.ABC, BaseModel):
         description="Amount of seconds before cancelling the order if not filled",
         ge=0,
     )
+    safety_margin: float = Field(
+        default=0.02,
+        description="Margin to be substract the initial order amount because of slippage",
+        ge=0,
+    )
+    max_retries: int = Field(
+        default=1,
+        description="Max order attempts",
+        ge=0,
+    )
 
     class Config:
         title = "Trading Parameters"
