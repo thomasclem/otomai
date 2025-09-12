@@ -144,6 +144,8 @@ class ListingBackrunStrategy(Strategy):
                 leverage=trading_params.leverage,
                 take_profit_pct=trading_params.take_profit_pct,
                 stop_loss_pct=trading_params.stop_loss_pct,
+                safety_margin=trading_params.safety_margin,
+                max_retries=trading_params.max_retries,
             )
 
             await self.notifier_service.send_message(

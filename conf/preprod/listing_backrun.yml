@@ -25,3 +25,5 @@ strategy:
     order_type: market
     margin_mode: isolated
     order_timeout: 600
+    safety_margin: 0.02
+    max_retries: 3
