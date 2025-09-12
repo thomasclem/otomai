@@ -279,58 +279,112 @@ class BitgetExchange(Exchange):
         reduce: T.Optional[bool] = False,
         take_profit_pct: T.Optional[float] = None,
         stop_loss_pct: T.Optional[float] = None,
+        safety_margin: float = 0.02,
+        max_retries: int = 3,
     ):
-        if not price:
-            ticker = self._session.fetch_ticker(symbol=symbol)
-            price = float(ticker["info"]["lastPr"])
+        for attempt in range(max_retries):
+            try:
+                if not price or attempt > 0:
+                    ticker = self._session.fetch_ticker(symbol=symbol)
+                    current_price = float(ticker["info"]["lastPr"])
+                else:
+                    current_price = price
 
-        amount = self.compute_open_order_amount_based_on_equity(
-            equity_trade_pct=equity_trade_pct, price=price
-        )
+                base_amount = self.compute_open_order_amount_based_on_equity(
+                    equity_trade_pct=equity_trade_pct, price=current_price
+                )
 
-        if take_profit_pct:
-            take_profit_price = utils.calculate_take_profit_price(
-                price,
-                order_side,
-                take_profit_pct,
-                leverage,
-            )
-        else:
-            take_profit_price = None
+                retry_margin = safety_margin * attempt
+                adjusted_amount = base_amount * (1 - retry_margin)
 
-        if stop_loss_pct:
-            stop_loss_price = utils.calculate_stop_loss_price(
-                price,
-                order_side,
-                stop_loss_pct,
-                leverage,
-            )
-        else:
-            stop_loss_price = None
+                logger.info(
+                    f"Attempt {attempt + 1}: Price={current_price}, "
+                    f"Base amount={base_amount:.6f}, Adjusted amount={adjusted_amount:.6f} "
+                    f"(margin: {retry_margin * 100:.1f}%)"
+                )
 
-        try:
-            self.set_margin_mode_and_leverage(
-                symbol=symbol,
-                margin_mode=margin_mode,
-                leverage=leverage,
-            )
-            order = self.create_order(
-                symbol=symbol,
-                side=order_side,
-                amount=amount,
-                type=order_type,
-                margin_mode=margin_mode,
-                trade_side=TradeSide.OPEN,
-                take_profit_price=take_profit_price,
-                stop_loss_price=stop_loss_price,
-                reduce=reduce,
-            )
-            logger.info(f"Order placed successfully: {order}")
+                if take_profit_pct:
+                    take_profit_price = utils.calculate_take_profit_price(
+                        current_price,
+                        order_side,
+                        take_profit_pct,
+                        leverage,
+                    )
+                else:
+                    take_profit_price = None
 
-            return order
-        except Exception as e:
-            logger.error(f"An unexpected error occurred: {e}")
-            raise
+                if stop_loss_pct:
+                    stop_loss_price = utils.calculate_stop_loss_price(
+                        current_price,
+                        order_side,
+                        stop_loss_pct,
+                        leverage,
+                    )
+                else:
+                    stop_loss_price = None
+
+                self.set_margin_mode_and_leverage(
+                    symbol=symbol,
+                    margin_mode=margin_mode,
+                    leverage=leverage,
+                )
+
+                order = self.create_order(
+                    symbol=symbol,
+                    side=order_side,
+                    amount=adjusted_amount,
+                    type=order_type,
+                    margin_mode=margin_mode,
+                    trade_side=TradeSide.OPEN,
+                    take_profit_price=take_profit_price,
+                    stop_loss_price=stop_loss_price,
+                    reduce=reduce,
+                )
+
+                logger.info(
+                    f"Order placed successfully on attempt {attempt + 1}: {order}"
+                )
+                return order
+
+            except ccxt.ExchangeError as e:
+                error_msg = str(e).lower()
+
+                if any(
+                    keyword in error_msg
+                    for keyword in [
+                        "exceeds the balance",
+                        "insufficient",
+                        "amount",
+                        "balance",
+                    ]
+                ):
+                    if attempt < max_retries - 1:
+                        logger.warning(
+                            f"Balance error on attempt {attempt + 1}: {e}. "
+                            f"Retrying with larger margin..."
+                        )
+                        continue
+                    else:
+                        logger.error(
+                            f"Failed to place order after {max_retries} attempts due to "
+                            f"balance issues. Last error: {e}"
+                        )
+                        raise
+                else:
+                    logger.error(f"ExchangeError (non-retryable): {e}")
+                    raise
+
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        f"Unexpected error on attempt {attempt + 1}: {e}. Retrying..."
+                    )
+                    continue
+                else:
+                    logger.error(f"Failed after {max_retries} attempts: {e}")
+                    raise
+
+        raise RuntimeError(f"Failed to place order after {max_retries} attempts")
 
     async def fetch_all_futures_symbol_names(self):
         future_symbol_names = []
