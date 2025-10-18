@@ -41,7 +41,7 @@ jobs:
         run: >
           WHEEL_FILE=$(ls dist/*.whl) &&
           docker build --build-arg WHEEL_FILE=$WHEEL_FILE
-          -t ${{ env.IMAGE_NAME }}:${{ github.ref_name }} .
+          -t ${{ env.IMAGE_NAME }}:${{ github.sha }} .
 
       - name: Log in to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
