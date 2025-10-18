@@ -5,7 +5,8 @@ import typing as T
 
 from pydantic import BaseModel, Field, model_validator
 
-from otomai.core.enums import OrderType, OrderMarginMode
+from otomai.core.enums import OrderType, OrderMarginMode, OrderSide
+
 
 # %% TRADING PARAMS
 
@@ -15,6 +16,10 @@ class TradingParams(abc.ABC, BaseModel):
     Model for trading parameters configuration.
     """
 
+    allowed_order_sides: T.Set[str] = Field(
+        default_factory=lambda: {OrderSide.SELL.value},
+        description="Allowed order sides to be used.",
+    )
     leverage: int = Field(default=1, description="Leverage to be applied in trading.")
     stop_loss_pct: float = Field(
         default=6, description="Stop loss percentage (e.g., 6 for 6%).", ge=0, le=100
