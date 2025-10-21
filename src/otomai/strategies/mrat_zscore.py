@@ -142,13 +142,33 @@ class MratZscoreStrategy(Strategy):
         Returns:
             True if position should be opened
         """
+        position_history = self.exchange_service.session.fetch_positions_history(
+            symbols=[self.symbol]
+        )
+        last_position = position_history[0]
+        hours_since_last_position = round(
+            (
+                datetime.utcnow()
+                - datetime.utcfromtimestamp(last_position[0]["timestamp"] / 1000)
+            ).seconds
+            / 3600
+        )
+
+        if hours_since_last_position < z_score_lookback_window:
+            logger.info(
+                f"Can't open new position, previous position is too recent: {hours_since_last_position} hours ago"
+            )
+            return False
+
         if (
             len(self.exchange_service.session.fetch_positions(symbols=[self.symbol]))
             > 0
         ):
+            logger.info("Can't open new position as positions are currently running")
             return False
 
         if len(self.exchange_service.session.fetch_open_orders(symbol=self.symbol)) > 0:
+            logger.info("Can't open new position as orders are currently running")
             return False
 
         return self._is_buy_signal(df, z_score_threshold, z_score_lookback_window)
