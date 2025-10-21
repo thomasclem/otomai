@@ -154,7 +154,7 @@ class MratZscoreStrategy(Strategy):
         hours_since_last_position = round(
             (
                 datetime.utcnow()
-                - datetime.utcfromtimestamp(last_position[0]["timestamp"] / 1000)
+                - datetime.utcfromtimestamp(last_position["timestamp"] / 1000)
             ).total_seconds()
             / 3600
         )
