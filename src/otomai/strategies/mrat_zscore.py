@@ -145,12 +145,17 @@ class MratZscoreStrategy(Strategy):
         position_history = self.exchange_service.session.fetch_positions_history(
             symbols=[self.symbol]
         )
+
+        if not position_history:
+            logger.info("No previous positions found, eligible to open a new one.")
+            return self._is_buy_signal(df, z_score_threshold, z_score_lookback_window)
+
         last_position = position_history[0]
         hours_since_last_position = round(
             (
                 datetime.utcnow()
                 - datetime.utcfromtimestamp(last_position[0]["timestamp"] / 1000)
-            ).seconds
+            ).total_seconds()
             / 3600
         )
 
