@@ -133,7 +133,10 @@ class ListingBackrunStrategy(Strategy):
     async def _process_signal(
         self, symbol: str, signal: OrderSide, trading_params: TradingParams
     ):
-        if signal != OrderSide.NONE:
+        if (
+            signal != OrderSide.NONE
+            and str(signal) in trading_params.allowed_order_sides
+        ):
             open_date_str = str(datetime.now(timezone.utc))
             order = self.exchange_service.open_future_order(
                 symbol=symbol,
@@ -197,10 +200,10 @@ class ListingBackrunStrategy(Strategy):
                 f"- Close : {df.iloc[0]['close']}" + "\n"
                 f"- High : {df.iloc[0]['high']}" + "\n"
                 f"- Low : {df.iloc[0]['low']}" + "\n"
-                f"- Volatility (Open-Low) : {df.iloc[0]['vol_open_low']}" + "\n"
-                f"- Volatility (Open-High) : {df.iloc[0]['vol_open_high']}" + "\n"
-                f"- BTC Volatility (Open-Close) : {df.iloc[0]['btc_vol']}" + "\n"
-                f"- BTC Volume proportion : {df.iloc[0]['volume_usdt_btc_prop']}"
+                f"- Volatility (Open-Low) : {df.iloc[0]['vol_open_low']:.2f}\n"
+                f"- Volatility (Open-High) : {df.iloc[0]['vol_open_high']:.2f}\n"
+                f"- BTC Volatility (Open-Close) : {df.iloc[0]['btc_vol']:.2f}\n"
+                f"- BTC Volume proportion : {df.iloc[0]['volume_usdt_btc_prop']:.2f}"
             )
         )
         return
