@@ -82,6 +82,14 @@ class MratZscoreStrategy(Strategy):
 
         filter_ma_under_slow_ma = df.iloc[-1]["filter_ma"] < df.iloc[-1]["slow_ma"]
 
+        logger.info(
+            f"""
+            Z score under threshold: {under_z_score_threshold}
+            Has rebound: {has_rebound}
+            Filter MA under slow MA: {filter_ma_under_slow_ma}
+            """
+        )
+
         return under_z_score_threshold and has_rebound and filter_ma_under_slow_ma
 
     @staticmethod
