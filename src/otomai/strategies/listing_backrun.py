@@ -83,6 +83,14 @@ class ListingBackrunStrategy(Strategy):
             row["volume_usdt_btc_prop"] >= volume_usdt_btc_prop_threshold
         )
 
+        logger.info(
+            f"""
+                    Volatility above threshold: {below_price_drop_threshold}
+                    BTC volatility above threshold: {above_btc_drop_threshold}
+                    Coin volume proportion of BTC volume above threshold: {above_volume_usdt_btc_prop_threshold}
+                    """
+        )
+
         return (
             below_price_drop_threshold
             & above_btc_drop_threshold

@@ -5,8 +5,8 @@ strategy:
     ohlcv_window: 10
     short_price_volatility_threshold: -20.0
     long_price_volatility_threshold: 20.0
-    short_btc_volatility_threshold: -0.3
-    long_btc_volatility_threshold: 0.3
+    short_btc_volatility_threshold: -1
+    long_btc_volatility_threshold: 1
     volume_usdt_btc_prop_threshold: 0.3
   database_service:
     KIND: DynamoDB
