@@ -17,3 +17,5 @@ database/__pycache__
 
 # Ignore Notebooks
 *.ipynb
+
+backtest/utilities/database
