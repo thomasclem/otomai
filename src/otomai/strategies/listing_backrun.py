@@ -192,13 +192,14 @@ class ListingBackrunStrategy(Strategy):
                 ohlcv_window=strategy_params.ohlcv_window,
             )
 
-            signal = self._check_signals(
-                row=df.iloc[0], strategy_params=strategy_params
-            )
+            if len(df) > 0:
+                signal = self._check_signals(
+                    row=df.iloc[0], strategy_params=strategy_params
+                )
 
-            await self._process_signal(
-                symbol=symbol, signal=signal, trading_params=trading_params
-            )
+                await self._process_signal(
+                    symbol=symbol, signal=signal, trading_params=trading_params
+                )
 
         await self.notifier_service.send_message(
             message=(
