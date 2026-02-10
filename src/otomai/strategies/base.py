@@ -10,12 +10,13 @@ import pydantic as pdt
 
 from otomai.configs import logger
 from otomai.core import utils
-from otomai.core.models import Position
+from otomai.core.models import Trade
 from otomai.services import (
     ExchangeServiceKind,
     NotifierServiceKind,
     DatabaseService,
     DynamoDB,
+    SQLiteDB,
 )
 from otomai.core.parameters import TradingParams, StrategyParams
 
@@ -37,9 +38,18 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
     )
     exchange_service: ExchangeServiceKind = pdt.Field(..., discriminator="KIND")
     notifier_service: NotifierServiceKind = pdt.Field(..., discriminator="KIND")
-    database_service: DatabaseService = DynamoDB()
+    database_service: DatabaseService = pdt.Field(default_factory=SQLiteDB, discriminator="KIND")
     strategy_params: StrategyParams = pdt.Field(...)
     trading_params: TradingParams = pdt.Field(...)
+
+    async def __aenter__(self):
+        # Async context manager entry
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        # Async context manager exit
+        if hasattr(self.exchange_service, "close_session"):
+            await self.exchange_service.close_session()
 
     def __enter__(self) -> "Strategy":
         """
@@ -57,10 +67,13 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
         """
         Exit method for context manager.
         """
+        # If we were using sync context manager, we might need to handle cleanup differently.
+        # But since we are moving to async, we prefer __aenter__ and __aexit__.
+        pass
 
-    def position_opening_available(self, max_simultaneous_positions: int) -> bool:
-        open_positions = len(self.exchange_service.session.fetch_positions())
-        open_orders = len(self.exchange_service.session.fetch_open_orders())
+    async def position_opening_available(self, max_simultaneous_positions: int) -> bool:
+        open_positions = len(await self.exchange_service.session.fetch_positions())
+        open_orders = len(await self.exchange_service.session.fetch_open_orders())
         return open_positions + open_orders < max_simultaneous_positions
 
     async def monitor_position_opening(self, symbol, order_timeout: int = 600):
@@ -68,7 +81,7 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
         start_time = time.time()
 
         while not open_position:
-            open_position = self.exchange_service.session.fetch_position(symbol)
+            open_position = await self.exchange_service.session.fetch_position(symbol)
             if open_position:
                 await self.notifier_service.send_message(
                     message=f"### {self.strategy_params.name} ### \n\n✅ Position successfully open for {symbol}."
@@ -90,7 +103,7 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
     ):
         sleep_time = 60
         while True:
-            positions_history = self.exchange_service.session.fetch_positions_history(
+            positions_history = await self.exchange_service.session.fetch_positions_history(
                 symbols=[symbol], since=utils.get_ts_in_ms_from_date(open_date)
             )
 
@@ -101,7 +114,7 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
 
                 if net_profit is not None:
                     try:
-                        position = Position(
+                        trade = Trade(
                             symbol=symbol,
                             net_profit=str(net_profit),
                             open_price=str(position_history_info.get("openAvgPrice")),
@@ -117,16 +130,16 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
                                     int(position_history_info["utime"])
                                 )
                             ),
-                            strategy_params=str(self.strategy_params),
+                            # strategy_params=str(self.strategy_params), # Skipped as per model
                         )
-                        self.database_service.insert_position(position)
+                        self.database_service.insert_trade(trade)
                         logger.info(
                             f"Position for {symbol} saved successfully with net profit: {net_profit}"
                         )
                         await self.notifier_service.send_message(
                             message=(
                                 f"### {self.strategy_params.name} ###\n\n"
-                                f"Position successfully closed for {symbol} with {position.net_profit}$ net profit"
+                                f"Position successfully closed for {symbol} with {trade.net_profit}$ net profit"
                             )
                         )
                         return

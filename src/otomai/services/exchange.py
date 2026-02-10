@@ -4,9 +4,9 @@ import os
 import time
 import typing as T
 
-import ccxt
+import ccxt.async_support as ccxt
 import pydantic as pdt
-from ccxt import bitget
+from ccxt.async_support import bitget
 import pandas as pd
 from dotenv import load_dotenv
 
@@ -77,6 +77,13 @@ class Exchange(abc.ABC, pdt.BaseModel):
     def session(self):
         return self._session
 
+    async def close_session(self):
+        """
+        Close the underlying exchange session.
+        """
+        if self._session:
+            await self._session.close()
+
 
 class BitgetExchange(Exchange):
     KIND: T.Literal["Bitget"] = "Bitget"
@@ -96,7 +103,7 @@ class BitgetExchange(Exchange):
             logger.error(f"Failed to initialize Bitget session: {e}")
             raise
 
-    def fetch_ohlcv_df(
+    async def fetch_ohlcv_df(
         self,
         symbol: str,
         timeframe: str,
@@ -123,7 +130,7 @@ class BitgetExchange(Exchange):
 
         for attempt in range(1, max_retries + 1):
             try:
-                data = self._session.fetch_ohlcv(
+                data = await self._session.fetch_ohlcv(
                     symbol=symbol, timeframe=timeframe, limit=window
                 )
 
@@ -133,7 +140,7 @@ class BitgetExchange(Exchange):
                     )
                     if attempt < max_retries:
                         logger.info(f"Retrying in {retry_delay} seconds...")
-                        time.sleep(retry_delay)
+                        await asyncio.sleep(retry_delay)
                         continue
                     else:
                         return pd.DataFrame()
@@ -159,7 +166,7 @@ class BitgetExchange(Exchange):
 
                 if attempt < max_retries:
                     logger.info(f"Retrying in {retry_delay} seconds...")
-                    time.sleep(retry_delay)
+                    await asyncio.sleep(retry_delay)
                 else:
                     logger.error(
                         f"Failed to fetch OHLCV data for {symbol} after {max_retries} attempts"
@@ -170,7 +177,7 @@ class BitgetExchange(Exchange):
 
         return pd.DataFrame()
 
-    def create_order(
+    async def create_order(
         self,
         symbol: str,
         side: OrderSide,
@@ -200,7 +207,7 @@ class BitgetExchange(Exchange):
             if stop_loss_price is not None:
                 params.update({"stopLoss": {"triggerPrice": stop_loss_price}})
 
-            return self._session.create_order(
+            return await self._session.create_order(
                 symbol=symbol,
                 type=type,
                 side=side.value,
@@ -215,11 +222,11 @@ class BitgetExchange(Exchange):
             logger.error(f"An unexpected error occurred: {e}")
             raise
 
-    def set_margin_mode_and_leverage(
+    async def set_margin_mode_and_leverage(
         self, symbol: str, margin_mode: str, leverage: int
     ):
         try:
-            self._session.set_margin_mode(
+            await self._session.set_margin_mode(
                 marginMode=margin_mode,
                 symbol=symbol,
                 params={"productType": "UMCBL", "marginCoin": "USDT"},
@@ -229,7 +236,7 @@ class BitgetExchange(Exchange):
             logger.error(f"Error setting margin mode for {symbol}: {e}")
         try:
             if margin_mode == OrderMarginMode.ISOLATED.value:
-                self._session.set_leverage(
+                await self._session.set_leverage(
                     leverage=leverage,
                     symbol=symbol,
                     params={
@@ -237,7 +244,7 @@ class BitgetExchange(Exchange):
                         "holdSide": "long",
                     },
                 )
-                self._session.set_leverage(
+                await self._session.set_leverage(
                     leverage=leverage,
                     symbol=symbol,
                     params={
@@ -245,11 +252,11 @@ class BitgetExchange(Exchange):
                         "holdSide": "short",
                     },
                 )
-                leverage = self._session.fetch_leverage(symbol=symbol)
+                leverage = await self._session.fetch_leverage(symbol=symbol)
                 assert leverage["shortLeverage"] == leverage
 
             else:
-                self._session.set_leverage(
+                await self._session.set_leverage(
                     leverage=leverage,
                     symbol=symbol,
                     params={"productType": "UMCBL", "marginCoin": "USDT"},
@@ -258,16 +265,16 @@ class BitgetExchange(Exchange):
         except Exception as e:
             logger.error(f"Error setting leverage for {symbol}: {e}")
 
-    def compute_open_order_amount_based_on_equity(
+    async def compute_open_order_amount_based_on_equity(
         self, equity_trade_pct: float, price: float
     ) -> float:
-        balance = self._session.fetch_balance()
+        balance = await self._session.fetch_balance()
         free_amount = balance["USDT"]["free"]
         usdt_size = free_amount * equity_trade_pct / 100
 
         return usdt_size / price
 
-    def open_future_order(
+    async def open_future_order(
         self,
         symbol: str,
         equity_trade_pct: float,
@@ -285,12 +292,12 @@ class BitgetExchange(Exchange):
         for attempt in range(max_retries):
             try:
                 if not price or attempt > 0:
-                    ticker = self._session.fetch_ticker(symbol=symbol)
+                    ticker = await self._session.fetch_ticker(symbol=symbol)
                     current_price = float(ticker["info"]["lastPr"])
                 else:
                     current_price = price
 
-                base_amount = self.compute_open_order_amount_based_on_equity(
+                base_amount = await self.compute_open_order_amount_based_on_equity(
                     equity_trade_pct=equity_trade_pct, price=current_price
                 )
 
@@ -323,13 +330,13 @@ class BitgetExchange(Exchange):
                 else:
                     stop_loss_price = None
 
-                self.set_margin_mode_and_leverage(
+                await self.set_margin_mode_and_leverage(
                     symbol=symbol,
                     margin_mode=margin_mode,
                     leverage=leverage,
                 )
 
-                order = self.create_order(
+                order = await self.create_order(
                     symbol=symbol,
                     side=order_side,
                     amount=adjusted_amount,
@@ -390,7 +397,7 @@ class BitgetExchange(Exchange):
         future_symbol_names = []
         while not future_symbol_names:
             try:
-                exchange_market = self._session.load_markets(reload=True)
+                exchange_market = await self._session.load_markets(reload=True)
                 future_symbol_names = [
                     s for s in exchange_market.keys() if s.endswith(":USDT")
                 ]
@@ -400,7 +407,7 @@ class BitgetExchange(Exchange):
         return future_symbol_names
 
     async def fetch_all_spot_symbol_name(self):
-        exchange_market = self._session.load_markets(reload=True)
+        exchange_market = await self._session.load_markets(reload=True)
         return [s for s in exchange_market.keys() if s.endswith("/USDT")]
 
 

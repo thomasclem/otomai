@@ -21,13 +21,13 @@ class ListingBackrunStrategy(Strategy):
 
     strategy_params: ListingBackrunStrategyParams
 
-    def _fetch_symbol_data(
+    async def _fetch_symbol_data(
         self, symbol: str, ohlcv_tf: str, ohlcv_window: int
     ) -> DataFrame[ListingBackrunKpiSchema]:
-        df_candidate = self.exchange_service.fetch_ohlcv_df(
+        df_candidate = await self.exchange_service.fetch_ohlcv_df(
             symbol=symbol, timeframe=ohlcv_tf, window=ohlcv_window
         )
-        df_btc = self.exchange_service.fetch_ohlcv_df(
+        df_btc = await self.exchange_service.fetch_ohlcv_df(
             symbol="BTC/USDT:USDT", timeframe=ohlcv_tf, window=ohlcv_window
         )
 
@@ -146,7 +146,7 @@ class ListingBackrunStrategy(Strategy):
             and str(signal) in trading_params.allowed_order_sides
         ):
             open_date_str = str(datetime.now(timezone.utc))
-            order = self.exchange_service.open_future_order(
+            order = await self.exchange_service.open_future_order(
                 symbol=symbol,
                 equity_trade_pct=trading_params.equity_trade_pct,
                 order_type=trading_params.order_type,
@@ -186,7 +186,7 @@ class ListingBackrunStrategy(Strategy):
         signal = OrderSide.NONE
 
         while len(df) <= 1 and signal == OrderSide.NONE:
-            df = self._fetch_symbol_data(
+            df = await self._fetch_symbol_data(
                 symbol=symbol,
                 ohlcv_tf=strategy_params.ohlcv_timeframe,
                 ohlcv_window=strategy_params.ohlcv_window,
@@ -199,6 +199,9 @@ class ListingBackrunStrategy(Strategy):
             await self._process_signal(
                 symbol=symbol, signal=signal, trading_params=trading_params
             )
+            
+            # Prevent busy loop and rate limiting
+            await asyncio.sleep(2)
 
         await self.notifier_service.send_message(
             message=(
@@ -244,7 +247,7 @@ class ListingBackrunStrategy(Strategy):
                     await asyncio.sleep(60)
 
                     for symbol in exchange_new_symbols:
-                        if self.position_opening_available(
+                        if await self.position_opening_available(
                             self.trading_params.max_simultaneous_positions
                         ):
                             asyncio.create_task(

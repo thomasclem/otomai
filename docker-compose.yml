@@ -6,11 +6,12 @@ services:
       dockerfile: Dockerfile
     environment:
       ENV: ${ENV:-dev}
-      STRATEGY: mrat
+      STRATEGY: mrat_zscore
     env_file:
       - env/base.env
       - env/${ENV:-dev}.env
     volumes:
       - ./strategies:/app/strategies
       - ./env:/app/env
+      - ./data:/app/data
     command: ["--files", "conf/{ENV}/${STRATEGY}.yml"]
