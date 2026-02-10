@@ -9,7 +9,7 @@ services:
       STRATEGY: mrat
     env_file:
       - env/base.env
-      - env/${ENV:-dev}.env
+      - env/${STRATEGY:-mrat}/${ENV:-dev}.env
     volumes:
       - ./strategies:/app/strategies
       - ./env:/app/env

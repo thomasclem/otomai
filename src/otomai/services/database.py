@@ -12,7 +12,7 @@ from otomai.core.models import Position, Positions
 logger = Logger(__name__)
 
 
-class DataBase(abc.ABC, pdt.BaseModel):
+class DatabaseService(abc.ABC, pdt.BaseModel):
     KIND: str
 
     @abc.abstractmethod
@@ -30,7 +30,7 @@ class DataBase(abc.ABC, pdt.BaseModel):
         pass
 
 
-class DynamoDB(DataBase):
+class DynamoDB(DatabaseService):
     KIND: T.Literal["DynamoDB"] = "DynamoDB"
 
     aws_access_key_id: str = pdt.Field(
@@ -39,7 +39,7 @@ class DynamoDB(DataBase):
     aws_secret_access_key: str = pdt.Field(
         default_factory=lambda: os.getenv("AWS_SECRET_ACCESS_KEY")
     )
-    region_name: str = pdt.Field(default_factory=lambda: os.getenv("AWS_REGION_NAME"))
+    region_name: str = pdt.Field(default_factory=lambda: os.getenv("AWS_REGION"))
     table_name: str = pdt.Field(default_factory=lambda: f"{os.getenv('ENV')}_positions")
 
     _session: boto3.Session = PrivateAttr()

@@ -4,7 +4,7 @@ from otomai.services.database import DynamoDB
 from otomai.services.exchange import BitgetExchange
 from otomai.services.notifier import TelegramNotifier
 
-NotifierServiceKind = T.Union[TelegramNotifier]
+NotifierService = T.Union[TelegramNotifier]
 
 ExchangeServiceKind = T.Union[BitgetExchange]
 

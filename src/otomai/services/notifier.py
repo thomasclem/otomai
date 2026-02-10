@@ -7,7 +7,7 @@ from telegram.request import HTTPXRequest
 import pydantic as pdt
 
 
-class Notifier(abc.ABC, pdt.BaseModel):
+class NotifierService(abc.ABC, pdt.BaseModel):
     KIND: str
 
     @abc.abstractmethod
@@ -19,7 +19,7 @@ class Notifier(abc.ABC, pdt.BaseModel):
         raise NotImplementedError("Subclasses must implement `send_image`.")
 
 
-class TelegramNotifier(Notifier):
+class TelegramNotifier(NotifierService):
     KIND: T.Literal["Telegram"] = "Telegram"
 
     chat_id: T.Union[str, int] = "5609154988"

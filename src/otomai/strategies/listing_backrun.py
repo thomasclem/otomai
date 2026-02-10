@@ -5,7 +5,13 @@ from datetime import datetime, timezone
 import pandas as pd
 from pandera.typing import DataFrame
 
+from otomai.core.constants import (
+    GHOST_CANDLE_THRESHOLD,
+    NEW_LISTING_CHECK_INTERVAL,
+    NEW_LISTING_PROCESSING_DELAY,
+)
 from otomai.core.enums import OrderSide
+from otomai.core.exceptions import DataValidationError, StrategyExecutionError
 from otomai.core.parameters import ListingBackrunStrategyParams, TradingParams
 from otomai.core.schemas import ListingBackrunKpiSchema
 from otomai.strategies.base import Strategy
@@ -52,7 +58,7 @@ class ListingBackrunStrategy(Strategy):
         df["volume_usdt_btc_prop"] = df["volume_usdt"] / df["volume_btc_usdt"] * 100
         df["btc_vol"] = (df["close_btc"] - df["open_btc"]) / df["open_btc"] * 100
         df.set_index("date", inplace=True, drop=True)
-        df_wo_ghost_candles = df.loc[df["vol_high_low"] >= 0.5]
+        df_wo_ghost_candles = df.loc[df["vol_high_low"] >= GHOST_CANDLE_THRESHOLD]
 
         if not df_wo_ghost_candles.empty:
             return df_wo_ghost_candles.drop(
@@ -168,7 +174,7 @@ class ListingBackrunStrategy(Strategy):
                 )
             )
             asyncio.create_task(
-                self.monitor_position(
+                self.position_monitor.monitor_position(
                     symbol=symbol,
                     open_date=open_date_str,
                 )
@@ -192,13 +198,17 @@ class ListingBackrunStrategy(Strategy):
                 ohlcv_window=strategy_params.ohlcv_window,
             )
 
-            signal = self._check_signals(
-                row=df.iloc[0], strategy_params=strategy_params
-            )
+            if len(df) > 0:
+                signal = self._check_signals(
+                    row=df.iloc[0], strategy_params=strategy_params
+                )
 
-            await self._process_signal(
-                symbol=symbol, signal=signal, trading_params=trading_params
-            )
+                await self._process_signal(
+                    symbol=symbol, signal=signal, trading_params=trading_params
+                )
+            else:
+                logger.warning(f"No valid data for {symbol}, waiting...")
+                await asyncio.sleep(NEW_LISTING_CHECK_INTERVAL)
 
         await self.notifier_service.send_message(
             message=(
@@ -217,10 +227,20 @@ class ListingBackrunStrategy(Strategy):
         return
 
     async def run(self):
-        exchange_symbols = await self.exchange_service.fetch_all_futures_symbol_names()
+        """
+        Main strategy loop: monitors for new futures listings and processes them.
+
+        Raises:
+            StrategyExecutionError: If strategy execution fails critically
+        """
+        try:
+            exchange_symbols = await self.exchange_service.fetch_all_futures_symbol_names()
+        except Exception as e:
+            logger.error(f"Failed to fetch initial symbols: {e}")
+            raise StrategyExecutionError("Failed to initialize strategy") from e
 
         while True:
-            await asyncio.sleep(10)
+            await asyncio.sleep(NEW_LISTING_CHECK_INTERVAL)
             try:
                 exchange_update_symbols = (
                     await self.exchange_service.fetch_all_futures_symbol_names()
@@ -241,7 +261,7 @@ class ListingBackrunStrategy(Strategy):
                         f"Candidates future symbols : {', '.join(exchange_new_symbols)}"
                     )
 
-                    await asyncio.sleep(60)
+                    await asyncio.sleep(NEW_LISTING_PROCESSING_DELAY)
 
                     for symbol in exchange_new_symbols:
                         if self.position_opening_available(
@@ -257,4 +277,5 @@ class ListingBackrunStrategy(Strategy):
 
             except Exception as e:
                 logger.error(f"Error in run loop: {e}")
-                raise Exception
+                # Continue running instead of crashing
+                await asyncio.sleep(NEW_LISTING_CHECK_INTERVAL)

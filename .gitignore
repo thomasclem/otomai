@@ -1,5 +1,6 @@
 env/
-venv/
+.venv/*
+venv/*
 .idea/
 */.idea
 *.sqlite
@@ -18,4 +19,5 @@ database/__pycache__
 # Ignore Notebooks
 *.ipynb
 
-backtest/utilities/database
+backtest/database/*   
+backtest/utilities/database/*
