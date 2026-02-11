@@ -39,6 +39,8 @@ class Trade(OptionalSQLModel, table=True):
     open_price: str
     close_price: str
     hold_side: str
+    amount: T.Optional[str] = Field(default=None, description="Position size/amount")
+    strategy: T.Optional[str] = Field(default=None, description="Strategy name")
     open_date: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )

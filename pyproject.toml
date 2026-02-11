@@ -31,6 +31,11 @@ pandera = "^0.22.1"
 typing-extensions = "^4.12.2"
 fake-useragent = "^2.2.0"
 sqlmodel = "^0.0.22"
+streamlit = "^1.31.0"
+plotly = "^5.18.0"
+pyyaml = "^6.0.1"
+docker = "^7.0.0"
+watchdog = "^4.0.0" 
 
 [tool.poetry.group.test.dependencies]
 mypy-boto3-s3 = "^1.35.93"

@@ -9,7 +9,7 @@ strategy:
     long_btc_volatility_threshold: 1
     volume_usdt_btc_prop_threshold: 0.3
   database_service:
-    KIND: DynamoDB
+    KIND: SQLite
   exchange_service:
     KIND: Bitget
     default_type: future
