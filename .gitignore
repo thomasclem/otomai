@@ -19,3 +19,4 @@ database/__pycache__
 *.ipynb
 
 backtest/utilities/database
+backtest/database
