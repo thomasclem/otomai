@@ -11,7 +11,17 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from otomai.core import utils
+from otomai.core.constants import (
+    BITGET_MARGIN_COIN,
+    BITGET_PRODUCT_TYPE,
+    DEFAULT_SAFETY_MARGIN,
+    MAX_MARKET_FETCH_RETRIES,
+    MAX_OHLCV_FETCH_RETRIES,
+    MAX_ORDER_RETRIES,
+    RETRY_DELAY_SECONDS,
+)
 from otomai.core.enums import OrderSide, TradeSide, OrderMarginMode
+from otomai.core.exceptions import ExchangeConnectionError, OrderExecutionError
 from otomai.logger import Logger
 
 logger = Logger(__name__)
@@ -101,8 +111,8 @@ class BitgetExchange(Exchange):
         symbol: str,
         timeframe: str,
         window: int,
-        max_retries: int = 20,
-        retry_delay: float = 5.0,
+        max_retries: int = MAX_OHLCV_FETCH_RETRIES,
+        retry_delay: float = RETRY_DELAY_SECONDS,
     ) -> pd.DataFrame:
         """
         Fetch OHLCV data from Bitget and return as a DataFrame with retry logic.
@@ -191,7 +201,7 @@ class BitgetExchange(Exchange):
                 "reduceOnly": reduce,
                 "tradeSide": trade_side.value,
                 "marginMode": margin_mode,
-                "productType": "UMCBL",
+                "productType": BITGET_PRODUCT_TYPE,
             }
 
             if take_profit_price is not None:
@@ -222,7 +232,10 @@ class BitgetExchange(Exchange):
             self._session.set_margin_mode(
                 marginMode=margin_mode,
                 symbol=symbol,
-                params={"productType": "UMCBL", "marginCoin": "USDT"},
+                params={
+                    "productType": BITGET_PRODUCT_TYPE,
+                    "marginCoin": BITGET_MARGIN_COIN,
+                },
             )
             logger.info(f"Margin mode set to {margin_mode} for {symbol}")
         except Exception as e:
@@ -233,7 +246,7 @@ class BitgetExchange(Exchange):
                     leverage=leverage,
                     symbol=symbol,
                     params={
-                        "productType": "UMCBL",
+                        "productType": BITGET_PRODUCT_TYPE,
                         "holdSide": "long",
                     },
                 )
@@ -241,7 +254,7 @@ class BitgetExchange(Exchange):
                     leverage=leverage,
                     symbol=symbol,
                     params={
-                        "productType": "UMCBL",
+                        "productType": BITGET_PRODUCT_TYPE,
                         "holdSide": "short",
                     },
                 )
@@ -252,7 +265,10 @@ class BitgetExchange(Exchange):
                 self._session.set_leverage(
                     leverage=leverage,
                     symbol=symbol,
-                    params={"productType": "UMCBL", "marginCoin": "USDT"},
+                    params={
+                        "productType": BITGET_PRODUCT_TYPE,
+                        "marginCoin": BITGET_MARGIN_COIN,
+                    },
                 )
             logger.info(f"Leverage set to {leverage} for {symbol}")
         except Exception as e:
@@ -279,8 +295,8 @@ class BitgetExchange(Exchange):
         reduce: T.Optional[bool] = False,
         take_profit_pct: T.Optional[float] = None,
         stop_loss_pct: T.Optional[float] = None,
-        safety_margin: float = 0.02,
-        max_retries: int = 3,
+        safety_margin: float = DEFAULT_SAFETY_MARGIN,
+        max_retries: int = MAX_ORDER_RETRIES,
     ):
         for attempt in range(max_retries):
             try:
@@ -386,17 +402,56 @@ class BitgetExchange(Exchange):
 
         raise RuntimeError(f"Failed to place order after {max_retries} attempts")
 
-    async def fetch_all_futures_symbol_names(self):
+    async def fetch_all_futures_symbol_names(
+        self, max_retries: int = MAX_MARKET_FETCH_RETRIES
+    ):
+        """
+        Fetch all futures symbol names from the exchange.
+
+        Args:
+            max_retries: Maximum number of retry attempts
+
+        Returns:
+            List of futures symbol names
+
+        Raises:
+            ExchangeConnectionError: If unable to fetch markets after max retries
+        """
         future_symbol_names = []
-        while not future_symbol_names:
+        retries = 0
+
+        while not future_symbol_names and retries < max_retries:
             try:
                 exchange_market = self._session.load_markets(reload=True)
                 future_symbol_names = [
                     s for s in exchange_market.keys() if s.endswith(":USDT")
                 ]
+
+                if not future_symbol_names:
+                    retries += 1
+                    logger.warning(
+                        f"No futures markets found (attempt {retries}/{max_retries})"
+                    )
+                    if retries < max_retries:
+                        await asyncio.sleep(RETRY_DELAY_SECONDS)
+
             except Exception as e:
-                logger.error(f"Error during fetching market info: {e}")
-                await asyncio.sleep(5)
+                retries += 1
+                logger.error(
+                    f"Error fetching market info (attempt {retries}/{max_retries}): {e}"
+                )
+                if retries < max_retries:
+                    await asyncio.sleep(RETRY_DELAY_SECONDS)
+                else:
+                    raise ExchangeConnectionError(
+                        f"Failed to fetch markets after {max_retries} attempts"
+                    ) from e
+
+        if not future_symbol_names:
+            raise ExchangeConnectionError(
+                f"No futures markets found after {max_retries} attempts"
+            )
+
         return future_symbol_names
 
     async def fetch_all_spot_symbol_name(self):

@@ -11,17 +11,16 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Set up Poetry
-        uses: abatilo/actions-poetry@v2
-        with:
-          poetry-version: "2.0.0"
+      - name: Set up UV
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.11
 
       - name: Install dependencies
-        run: |
-          poetry install
+        run: uv sync --all-extras
 
       - name: Launch unit tests
-        run: |
-          poetry run pytest
+        run: uv run pytest

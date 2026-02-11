@@ -16,6 +16,3 @@ class Logger(logging.Logger):
         handler.setFormatter(formatter)
         self.addHandler(handler)
         self.propagate = False
-        asyncio_logger = logging.getLogger("asyncio")
-        if asyncio_logger.level != logging.ERROR:
-            asyncio_logger.setLevel(logging.ERROR)

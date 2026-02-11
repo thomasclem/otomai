@@ -3,7 +3,7 @@ import typing as T
 from otomai.logger import Logger
 
 import omegaconf as oc
-import cloudpathlib as cpl
+import omegaconf as oc
 from dotenv import load_dotenv
 
 logger = Logger(__name__)
@@ -16,6 +16,8 @@ Config = oc.DictConfig | oc.ListConfig
 
 
 def parse_file(path: str) -> Config:
+    import cloudpathlib as cpl
+
     any_path = cpl.AnyPath(path)
     text: str = any_path.read_text()
     return oc.OmegaConf.create(text)
@@ -46,8 +48,11 @@ def load_env():
     """
     Load environment variables from base and specific environment files.
     """
-    base_env_path = "env/base.env"
-    specific_env_path = f"env/{os.getenv('ENV', 'dev')}.env"
+    import pathlib
+
+    project_root = pathlib.Path(__file__).parent.parent.parent
+    base_env_path = project_root / "env" / "base.env"
+    specific_env_path = project_root / "env" / f"{os.getenv('STRATEGY', 'mrat_zscore')}" / f"{os.getenv('ENV', 'dev')}.env"
 
     load_dotenv(dotenv_path=base_env_path)
 
