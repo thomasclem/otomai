@@ -10,7 +10,7 @@ from otomai.services import (
     ExchangeServiceKind,
     NotifierService,
     DatabaseService,
-    DynamoDB,
+    SQLiteDB,
 )
 from otomai.services.position_monitor import PositionMonitor
 
@@ -29,7 +29,7 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
     )
     exchange_service: ExchangeServiceKind = pdt.Field(..., discriminator="KIND")
     notifier_service: NotifierService = pdt.Field(..., discriminator="KIND")
-    database_service: DatabaseService = DynamoDB()
+    database_service: DatabaseService = SQLiteDB()
     strategy_params: StrategyParams = pdt.Field(...)
     trading_params: TradingParams = pdt.Field(...)
 

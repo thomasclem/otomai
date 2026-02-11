@@ -1,12 +1,11 @@
 # %% IMPORTS
 
+import typing as T
 import uuid
 from datetime import datetime, timezone
-import typing as T
 
 import pydantic as pdt
-
-from otomai.core.parameters import StrategyParams
+from sqlmodel import Field, SQLModel
 
 
 # %% ORDERS
@@ -24,22 +23,31 @@ class Orders(pdt.BaseModel):
     orders: T.List[Order]
 
 
-# %% ORDERS
+
+# %% TRADES
 
 
-class Position(pdt.BaseModel):
-    id: str = pdt.Field(default_factory=lambda: str(uuid.uuid4()))
+class OptionalSQLModel(SQLModel):
+    """
+    Base model that makes all fields optional for partial updates/creation if needed.
+    """
+    pass
+
+
+class Trade(OptionalSQLModel, table=True):
+    id: T.Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     symbol: str
     open_price: str
     close_price: str
     hold_side: str
-    open_date: str = pdt.Field(
+    amount: T.Optional[str] = Field(default=None, description="Position size/amount")
+    strategy: T.Optional[str] = Field(default=None, description="Strategy name")
+    open_date: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
-    close_date: T.Optional[str] = pdt.Field(default_factory=None)
-    net_profit: T.Optional[str] = pdt.Field(default_factory=None)
-    strategy_params: T.Optional[str] = pdt.Field(default_factory=None)
+    close_date: T.Optional[str] = Field(default_factory=None)
+    net_profit: T.Optional[str] = Field(default_factory=None)
 
 
-class Positions(pdt.BaseModel):
-    positions: T.List[Position]
+class Trades(pdt.BaseModel):
+    trades: T.List[Trade]

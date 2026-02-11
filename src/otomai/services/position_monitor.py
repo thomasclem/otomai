@@ -8,6 +8,7 @@ concerns from strategy classes to promote separation of concerns.
 import asyncio
 import time
 import typing as T
+from datetime import datetime, timezone
 
 import pydantic as pdt
 
@@ -20,7 +21,7 @@ from otomai.core.constants import (
     POSITION_OPENING_TIMEOUT,
 )
 from otomai.core.exceptions import PositionMonitoringError, PositionTimeoutError
-from otomai.core.models import Position
+from otomai.core.models import Trade
 from otomai.services.database import DatabaseService
 from otomai.services.notifier import NotifierService
 
@@ -105,6 +106,7 @@ class PositionMonitor(pdt.BaseModel):
         self,
         symbol: str,
         open_date: str,
+        hold_side: T.Optional[str] = None,
         max_timeout: int = POSITION_CLOSING_MAX_TIMEOUT,
     ) -> None:
         """
@@ -113,6 +115,7 @@ class PositionMonitor(pdt.BaseModel):
         Args:
             symbol: Trading pair symbol
             open_date: ISO format date when position was opened
+            hold_side: 'long' or 'short'. Used to filter closing trades (opposite side).
             max_timeout: Maximum time to monitor before giving up (seconds)
 
         Raises:
@@ -132,65 +135,107 @@ class PositionMonitor(pdt.BaseModel):
                     logger.error(error_msg)
                     raise PositionTimeoutError(error_msg)
 
-                positions_history = self.exchange_service.session.fetch_positions_history(
-                    symbols=[symbol],
+
+                # Use fetch_my_trades (Fill History) to check for closing execution
+                # We fetch all trades since the position open time
+                trades = self.exchange_service.session.fetch_my_trades(
+                    symbol=symbol,
                     since=utils.get_ts_in_ms_from_date(open_date),
                 )
+                
+                # Logic to identify the closing trade(s) for THIS position:
+                # 1. Must be for the correct symbol.
+                # 2. Must be OPPOSITE to the hold_side (if known).
+                #    Long Position -> Closing Trade is 'sell'
+                #    Short Position -> Closing Trade is 'buy'
+                # 3. Must have 'profit' (Realized PnL) != 0 (Strong confirmation).
+                
+                required_trade_side = None
+                if hold_side:
+                    s = hold_side.lower()
+                    if s == 'long':
+                        required_trade_side = 'sell'
+                    elif s == 'short':
+                        required_trade_side = 'buy'
 
-                if positions_history:
-                    position_history = positions_history[0]
-                    position_history_info = position_history.get("info", {})
-                    net_profit = position_history_info.get("netProfit")
+                closing_trades = []
+                for t in trades:
+                    info = t.get("info", {})
+                    # Ensure symbol matches
+                    if t.get("symbol") != symbol:
+                        continue
+                    
+                    # Check Side (if we know what to look for)
+                    if required_trade_side and t.get("side") != required_trade_side:
+                        continue
 
-                    if net_profit is not None:
-                        try:
-                            position = Position(
-                                symbol=symbol,
-                                net_profit=str(net_profit),
-                                open_price=str(position_history_info.get("openAvgPrice")),
-                                close_price=str(
-                                    position_history_info.get("closeAvgPrice")
-                                ),
-                                hold_side=str(position_history_info.get("holdSide")),
-                                open_date=str(
-                                    utils.get_date_from_ts_in_ms(
-                                        int(position_history_info["ctime"])
-                                    )
-                                ),
-                                close_date=str(
-                                    utils.get_date_from_ts_in_ms(
-                                        int(position_history_info["utime"])
-                                    )
-                                ),
-                                strategy_params=self.strategy_name,
-                            )
+                    # Check for realized profit (Bitget specific)
+                    # This is the most reliable way to ignore entry fills which usually have 0 profit.
+                    if "profit" in info and float(info["profit"]) != 0:
+                         closing_trades.append(t)
 
-                            self.database_service.insert_position(position)
-                            logger.info(
-                                f"Position for {symbol} saved successfully "
-                                f"with net profit: {net_profit}"
-                            )
+                if closing_trades:
+                    # If multiple closing trades found (e.g. partial fills), we should ideally aggregate them.
+                    # For now, we take the most recent one or aggregate if they happened recently.
+                    # Assumption: The strategy closes in one go or we want to record the cumulative result.
+                    # Let's sum up the profit and amount for the "Trade" record if we consider the position closed.
+                    
+                    # Check if position is actually closed on exchange to confirm valid aggregation?
+                    # Or just record the fills.
+                    # Simplification: Take the last one (most recent) or sum them?
+                    # The user wants "the info from the trade you are monitoring".
+                    # Let's aggregate PnL and Size from all detected closing fills since open.
+                    
+                    total_pnl = 0.0
+                    total_size = 0.0
+                    last_trade = closing_trades[-1]
+                    last_info = last_trade.get("info", {})
+                    
+                    for ct in closing_trades:
+                        i = ct.get("info", {})
+                        total_pnl += float(i.get("profit", 0))
+                        total_size += float(i.get("baseVolume", i.get("size", 0)))
 
-                            await self.notifier_service.send_message(
-                                message=(
-                                    f"### {self.strategy_name} ###\n\n"
-                                    f"Position successfully closed for {symbol} "
-                                    f"with {position.net_profit}$ net profit"
-                                )
-                            )
-                            return
+                    info = last_trade.get("info", {})
+                    
+                    # Extract timestamps from the last trade
+                    ctime = int(info.get("cTime", 0))
+                    close_date_str = (
+                        str(utils.get_date_from_ts_in_ms(ctime))
+                        if ctime
+                        else str(datetime.now(timezone.utc))
+                    )
 
-                        except Exception as e:
-                            logger.error(f"Failed to insert position for {symbol}: {e}")
-                            raise PositionMonitoringError(
-                                f"Error inserting position for {symbol}"
-                            ) from e
-                    else:
-                        logger.debug(
-                            f"No net profit available yet for {symbol}, "
-                            f"retrying in {POSITION_CLOSING_CHECK_INTERVAL} seconds..."
+                    trade = Trade(
+                        symbol=symbol,
+                        net_profit=str(total_pnl),
+                        open_price=str(last_trade.get("price")), # Use last close price
+                        close_price=str(last_trade.get("price")),
+                        hold_side=str(info.get("side")),
+                        open_date=open_date,
+                        close_date=close_date_str,
+                        amount=str(total_size),
+                        strategy=self.strategy_name,
+                    )
+
+
+                    self.database_service.insert_trade(trade)
+                    logger.info(
+                        f"Trade for {symbol} saved successfully "
+                        f"with net profit: {total_pnl}"
+                    )
+
+                    await self.notifier_service.send_message(
+                        message=(
+                            f"### {self.strategy_name} ###\n\n"
+                            f"Position successfully closed for {symbol} "
+                            f"with {trade.net_profit}$ net profit"
                         )
+                    )
+                    return
 
+                
+                # If no closing trade found, wait and retry
                 await asyncio.sleep(POSITION_CLOSING_CHECK_INTERVAL)
 
             except (PositionMonitoringError, PositionTimeoutError):
@@ -222,8 +267,26 @@ class PositionMonitor(pdt.BaseModel):
             PositionTimeoutError: If position doesn't open/close within timeout
         """
         try:
+            # 1. Wait for position to open
             await self.monitor_position_opening(symbol, opening_timeout)
-            await self.monitor_position_closing(symbol, open_date, closing_max_timeout)
+            
+            # 2. Fetch active position details to get the side (Long/Short)
+            # This is crucial to distinguish closing trades (opposite side) from opening trades.
+            position = self.exchange_service.session.fetch_position(symbol)
+            hold_side = None
+            if position:
+                # Bitget/CCXT standard: info['holdSide'] is usually 'long' or 'short'
+                # or side is 'long'/'short' in the main dict structure
+                hold_side = position.get("side") or position.get("info", {}).get("holdSide")
+            
+            # 3. Monitor for closing
+            await self.monitor_position_closing(
+                symbol, 
+                open_date, 
+                hold_side=hold_side,
+                max_timeout=closing_max_timeout
+            )
+            
         except Exception as e:
             logger.error(f"Position monitoring failed for {symbol}: {e}")
             raise

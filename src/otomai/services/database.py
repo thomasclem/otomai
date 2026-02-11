@@ -1,3 +1,4 @@
+
 import abc
 import os
 import typing as T
@@ -5,9 +6,10 @@ import typing as T
 import boto3
 import pydantic as pdt
 from pydantic import PrivateAttr
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from otomai.logger import Logger
-from otomai.core.models import Position, Positions
+from otomai.core.models import Trade, Trades
 
 logger = Logger(__name__)
 
@@ -16,16 +18,16 @@ class DatabaseService(abc.ABC, pdt.BaseModel):
     KIND: str
 
     @abc.abstractmethod
-    def insert_position(self, position: Position):
+    def insert_trade(self, trade: Trade):
         """
-        Abstract method to insert position to database. Must be implemented by subclasses.
+        Abstract method to insert trade to database. Must be implemented by subclasses.
         """
         pass
 
     @abc.abstractmethod
-    def fetch_all_positions(self):
+    def fetch_all_trades(self):
         """
-        Abstract method to fetch all positions from database. Must be implemented by subclasses.
+        Abstract method to fetch all trades from database. Must be implemented by subclasses.
         """
         pass
 
@@ -40,7 +42,7 @@ class DynamoDB(DatabaseService):
         default_factory=lambda: os.getenv("AWS_SECRET_ACCESS_KEY")
     )
     region_name: str = pdt.Field(default_factory=lambda: os.getenv("AWS_REGION"))
-    table_name: str = pdt.Field(default_factory=lambda: f"{os.getenv('ENV')}_positions")
+    table_name: str = pdt.Field(default_factory=lambda: f"{os.getenv('ENV')}_trades")
 
     _session: boto3.Session = PrivateAttr()
     _dynamodb: T.Any = PrivateAttr()
@@ -52,47 +54,105 @@ class DynamoDB(DatabaseService):
 
     def __post_init__(self, **kwargs):
         """Post-initialization to set up AWS resources."""
-        self._session = boto3.Session(
-            aws_access_key_id=self.aws_access_key_id,
-            aws_secret_access_key=self.aws_secret_access_key,
-            region_name=self.region_name,
-        )
-        self._dynamodb = self._session.resource("dynamodb")
-        self._table = self._dynamodb.Table(self.table_name)
+        # Only initialize if AWS keys are present, or handle gracefully?
+        # Assuming user responsible for env vars if they choose DynamoDB.
+        if self.aws_access_key_id and self.aws_secret_access_key:
+            self._session = boto3.Session(
+                aws_access_key_id=self.aws_access_key_id,
+                aws_secret_access_key=self.aws_secret_access_key,
+                region_name=self.region_name,
+            )
+            self._dynamodb = self._session.resource("dynamodb")
+            self._table = self._dynamodb.Table(self.table_name)
 
     def create_table(self):
         try:
             self._table = self._dynamodb.create_table(
-                TableName=self.table.name,
+                TableName=self.table_name,
                 KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}],
-                AttributeDefinitions=[{"AttributeName": "id", "AttributeType": "N"}],
+                AttributeDefinitions=[{"AttributeName": "id", "AttributeType": "S"}], # Trade ID is string (UUID)
                 ProvisionedThroughput={"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
             )
             self._table.meta.client.get_waiter("table_exists").wait(
-                TableName=self.table.name
+                TableName=self.table_name
             )
-            print(f"Table {self.table.name} created successfully")
+            print(f"Table {self.table_name} created successfully")
         except Exception as e:
             print(f"Error creating table: {e}")
 
-    def insert_position(self, position: Position):
-        logger.info("Saving order to the database...")
+    def insert_trade(self, trade: Trade):
+        logger.info("Saving trade to DynamoDB...")
         try:
-            item = position.model_dump()
+            # SQLModel/Pydantic v2 dump
+            item = trade.model_dump()
+            # Remove None values for DynamoDB
             item = {k: v for k, v in item.items() if v is not None}
-            print("Inserting item:", item)
             self._table.put_item(Item=item)
-            logger.info("Position saved successfully")
+            logger.info("Trade saved successfully to DynamoDB")
         except Exception as e:
-            logger.error(f"Position saving failed: {e}")
+            logger.error(f"Trade saving failed: {e}")
             raise
 
-    def fetch_all_positions(self) -> Positions:
+    def fetch_all_trades(self) -> Trades:
         try:
             response = self._table.scan()
             items = response.get("Items", [])
-            orders = [Position(**item) for item in items]
-            return Position(orders=orders)
+            # Convert back to Trade objects
+            trades = [Trade(**item) for item in items]
+            return Trades(trades=trades)
         except Exception as e:
-            logger.error(f"Error fetching all positions: {e}")
-            return Positions(orders=[])
+            logger.error(f"Error fetching all trades: {e}")
+            return Trades(trades=[])
+
+
+class SQLiteDB(DatabaseService):
+    KIND: T.Literal["SQLiteDB"] = "SQLiteDB"
+    
+    db_url: str = pdt.Field(default_factory=lambda: os.getenv("DATABASE_URL", "sqlite:///data/otomai.db"))
+    
+    _engine: T.Any = PrivateAttr()
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.__post_init__()
+
+    def __post_init__(self, **kwargs):
+        """Post-initialization to set up SQLite resources."""
+        # Ensure data directory exists if using local file
+        if self.db_url.startswith("sqlite:///"):
+            path = self.db_url.replace("sqlite:///", "")
+            directory = os.path.dirname(path)
+            if directory and not os.path.exists(directory):
+                os.makedirs(directory, exist_ok=True)
+                
+        self._engine = create_engine(self.db_url)
+        self.create_tables()
+
+    def create_tables(self):
+        try:
+            SQLModel.metadata.create_all(self._engine)
+            logger.info("Database tables created successfully")
+        except Exception as e:
+            logger.error(f"Error creating tables: {e}")
+
+    def insert_trade(self, trade: Trade):
+        logger.info("Saving trade to SQLite...")
+        try:
+            with Session(self._engine) as session:
+                session.add(trade)
+                session.commit()
+                session.refresh(trade)
+            logger.info("Trade saved successfully to SQLite")
+        except Exception as e:
+            logger.error(f"Trade saving failed: {e}")
+            raise
+
+    def fetch_all_trades(self) -> Trades:
+        try:
+            with Session(self._engine) as session:
+                statement = select(Trade)
+                results = session.exec(statement).all()
+                return Trades(trades=list(results))
+        except Exception as e:
+            logger.error(f"Error fetching all trades: {e}")
+            return Trades(trades=[])

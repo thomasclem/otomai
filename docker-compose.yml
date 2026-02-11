@@ -14,3 +14,21 @@ services:
       - ./strategies:/app/strategies
       - ./env:/app/env
     command: ["--files", "conf/{ENV}/${STRATEGY}.yml"]
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["streamlit", "run", "src/dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    volumes:
+      - ./conf:/app/conf:ro
+      - ./data:/app/data:ro
+      - ./src:/app/src
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env.keys
+    environment:
+      DATABASE_URL: sqlite:///app/data/otomai.db
+      ENV: ${ENV:-dev}
