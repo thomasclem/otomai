@@ -3,7 +3,6 @@ import typing as T
 from otomai.logger import Logger
 
 import omegaconf as oc
-import omegaconf as oc
 from dotenv import load_dotenv
 
 logger = Logger(__name__)

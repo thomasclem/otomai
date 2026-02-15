@@ -24,11 +24,7 @@ from otomai.core.exceptions import PositionMonitoringError, PositionTimeoutError
 from otomai.core.models import Trade
 from otomai.services.database import DatabaseService
 from otomai.services.notifier import NotifierService
-
-
-if T.TYPE_CHECKING:
-    from otomai.services.exchange import ExchangeKind
-
+from otomai.services.exchange import ExchangeKind
 
 class PositionMonitor(pdt.BaseModel):
     """
@@ -39,7 +35,7 @@ class PositionMonitor(pdt.BaseModel):
     """
 
     KIND: T.Literal["PositionMonitor"] = "PositionMonitor"
-    exchange_service: "ExchangeKind"
+    exchange_service: ExchangeKind
     notifier_service: NotifierService
     database_service: DatabaseService
     strategy_name: str
@@ -50,7 +46,7 @@ class PositionMonitor(pdt.BaseModel):
         self,
         symbol: str,
         order_timeout: int = POSITION_OPENING_TIMEOUT,
-    ) -> bool:
+    ) -> T.Optional[dict]:
         """
         Monitor a position until it opens or times out.
 
@@ -59,7 +55,7 @@ class PositionMonitor(pdt.BaseModel):
             order_timeout: Maximum time to wait for position to open (seconds)
 
         Returns:
-            True if position opened successfully, False if timed out
+            Position dict with open_price and hold_side if opened, None if timed out
 
         Raises:
             PositionTimeoutError: If position doesn't open within timeout
@@ -70,7 +66,8 @@ class PositionMonitor(pdt.BaseModel):
             try:
                 open_position = self.exchange_service.session.fetch_position(symbol)
 
-                if open_position:
+                # Verify a real position exists by checking contracts > 0
+                if open_position and float(open_position.get("contracts", 0) or 0) > 0:
                     await self.notifier_service.send_message(
                         message=(
                             f"### {self.strategy_name} ### \n\n"
@@ -78,7 +75,7 @@ class PositionMonitor(pdt.BaseModel):
                         )
                     )
                     logger.info(f"Position opened successfully for {symbol}")
-                    return True
+                    return open_position
 
                 elapsed_time = time.time() - start_time
                 if elapsed_time > order_timeout:
@@ -209,9 +206,9 @@ class PositionMonitor(pdt.BaseModel):
                     trade = Trade(
                         symbol=symbol,
                         net_profit=str(total_pnl),
-                        open_price=str(last_trade.get("price")), # Use last close price
+                        open_price=str(self._cached_open_price or last_trade.get("price")),
                         close_price=str(last_trade.get("price")),
-                        hold_side=str(info.get("side")),
+                        hold_side=str(self._cached_hold_side or info.get("side")),
                         open_date=open_date,
                         close_date=close_date_str,
                         amount=str(total_size),
@@ -267,17 +264,19 @@ class PositionMonitor(pdt.BaseModel):
             PositionTimeoutError: If position doesn't open/close within timeout
         """
         try:
-            # 1. Wait for position to open
-            await self.monitor_position_opening(symbol, opening_timeout)
+            # 1. Wait for position to open — returns position dict with open price & side
+            position = await self.monitor_position_opening(symbol, opening_timeout)
             
-            # 2. Fetch active position details to get the side (Long/Short)
-            # This is crucial to distinguish closing trades (opposite side) from opening trades.
-            position = self.exchange_service.session.fetch_position(symbol)
+            # 2. Extract open_price and hold_side from the live position
             hold_side = None
+            self._cached_open_price = None
+            self._cached_hold_side = None
+            
             if position:
-                # Bitget/CCXT standard: info['holdSide'] is usually 'long' or 'short'
-                # or side is 'long'/'short' in the main dict structure
                 hold_side = position.get("side") or position.get("info", {}).get("holdSide")
+                self._cached_hold_side = hold_side
+                # entryPrice is the actual open price from the exchange
+                self._cached_open_price = position.get("entryPrice") or position.get("info", {}).get("openPriceAvg")
             
             # 3. Monitor for closing
             await self.monitor_position_closing(

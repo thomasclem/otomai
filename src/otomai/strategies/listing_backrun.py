@@ -9,6 +9,7 @@ from otomai.core.constants import (
     GHOST_CANDLE_THRESHOLD,
     NEW_LISTING_CHECK_INTERVAL,
     NEW_LISTING_PROCESSING_DELAY,
+    LISTING_DATA_AVAILABILITY_WINDOW
 )
 from otomai.core.enums import OrderSide
 from otomai.core.exceptions import DataValidationError, StrategyExecutionError
@@ -27,12 +28,16 @@ class ListingBackrunStrategy(Strategy):
 
     strategy_params: ListingBackrunStrategyParams
 
-    def _fetch_symbol_data(
-        self, symbol: str, ohlcv_tf: str, ohlcv_window: int
+    async def _fetch_symbol_data(
+        self, symbol: str, ohlcv_tf: str, ohlcv_window: int, listing_data_availability_window: int
     ) -> DataFrame[ListingBackrunKpiSchema]:
         df_candidate = self.exchange_service.fetch_ohlcv_df(
             symbol=symbol, timeframe=ohlcv_tf, window=ohlcv_window
         )
+        if df_candidate.empty:
+            await asyncio.sleep(listing_data_availability_window)
+            return pd.DataFrame()
+
         df_btc = self.exchange_service.fetch_ohlcv_df(
             symbol="BTC/USDT:USDT", timeframe=ohlcv_tf, window=ohlcv_window
         )
@@ -184,10 +189,11 @@ class ListingBackrunStrategy(Strategy):
         signal = OrderSide.NONE
 
         while len(df) <= 1 and signal == OrderSide.NONE:
-            df = self._fetch_symbol_data(
+            df = await self._fetch_symbol_data(
                 symbol=symbol,
                 ohlcv_tf=strategy_params.ohlcv_timeframe,
                 ohlcv_window=strategy_params.ohlcv_window,
+                listing_data_availability_window=LISTING_DATA_AVAILABILITY_WINDOW,
             )
 
             if len(df) > 0:
