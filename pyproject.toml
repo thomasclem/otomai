@@ -25,6 +25,11 @@ dependencies = [
     "ta>=0.11.0",
     "tqdm>=4.67.3",
     "typing-extensions>=4.12.2",
+    "sqlmodel>=0.0.22",
+    "streamlit>=1.42.0",
+    "docker>=7.1.0",
+    "pyarrow>=23.0.0",
+    "matplotlib>=3.10.8",
 ]
 
 [project.optional-dependencies]

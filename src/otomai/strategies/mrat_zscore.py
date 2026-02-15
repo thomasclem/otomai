@@ -323,7 +323,7 @@ class MratZscoreStrategy(Strategy):
                         reduce=False,
                     )
                     asyncio.create_task(
-                        self.monitor_position(
+                        self.position_monitor.monitor_position(
                             symbol=self.symbol,
                             open_date=open_date_str,
                         )

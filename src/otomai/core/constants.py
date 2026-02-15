@@ -56,3 +56,9 @@ BITGET_PRODUCT_TYPE = "UMCBL"
 
 # Default margin coin for Bitget
 BITGET_MARGIN_COIN = "USDT"
+
+# Time to wait before querying another time the OHLCV data for a new listing
+LISTING_DATA_AVAILABILITY_WINDOW = 60 * 30
+
+# Maximum number of concurrent requests for batch operations
+MAX_CONCURRENT_REQUESTS = 10

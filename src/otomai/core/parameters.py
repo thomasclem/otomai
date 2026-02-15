@@ -129,5 +129,15 @@ class ListingBackrunStrategyParams(BaseModel):
         description="Minimum volume percentage of BTC volume for sell signal",
     )
 
+class DumbRSIStrategyParams(BaseModel):
+    name: str = Field(default="dumb_rsi", description="Strategy name")
+    ohlcv_window: int = Field(default=1, description="Depth for OHLCV data")
+    rsi_window: int = Field(default=14, description="RSI window")
+    rsi_overbought_threshold: int = Field(default=70, description="RSI overbought threshold")
+    rsi_oversold_threshold: int = Field(default=30, description="RSI oversold threshold")
+    rsi_timeframe: T.Literal["1m", "5m", "15m", "30m", "1h", "4h"] = Field(
+        default="1h", description="Timeframe for the RSI data"
+    )
 
-StrategyParams = T.Union[MratZscoreStrategyParams, ListingBackrunStrategyParams]
+
+StrategyParams = T.Union[MratZscoreStrategyParams, ListingBackrunStrategyParams, DumbRSIStrategyParams]

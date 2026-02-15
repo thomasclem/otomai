@@ -19,6 +19,7 @@ from otomai.core.constants import (
     MAX_OHLCV_FETCH_RETRIES,
     MAX_ORDER_RETRIES,
     RETRY_DELAY_SECONDS,
+    MAX_CONCURRENT_REQUESTS,
 )
 from otomai.core.enums import OrderSide, TradeSide, OrderMarginMode
 from otomai.core.exceptions import ExchangeConnectionError, OrderExecutionError
@@ -177,6 +178,78 @@ class BitgetExchange(Exchange):
                     raise RuntimeError(
                         f"Error fetching OHLCV data after {max_retries} retries: {e}"
                     )
+
+        return pd.DataFrame()
+
+    
+
+    async def fetch_all_symbols_ohlcv_df(
+        self, timeframe: str = "1h", ohlcv_window: int = 20
+    ) -> pd.DataFrame:
+        """
+        Fetch OHLCV data for all symbols asynchronously, respecting the API rate limit.
+
+        Args:
+            timeframe (str): The timeframe for the OHLCV data (e.g., '1h').
+            ohlcv_window (int): The window size for fetching OHLCV data.
+
+        Returns:
+            pd.DataFrame: A pandas DataFrame containing OHLCV data for all symbols.
+        """
+        try:
+            symbol_list = await self.fetch_all_futures_symbol_names()
+        except Exception as e:
+            logger.error(f"Failed to fetch symbols list: {e}")
+            return pd.DataFrame()
+
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+        loop = asyncio.get_running_loop()
+
+        async def fetch_symbol_ohlcv(
+            sem: asyncio.Semaphore, symbol: str
+        ) -> T.Optional[pd.DataFrame]:
+            """
+            Fetch OHLCV data for a single symbol asynchronously.
+            """
+            async with sem:
+                try:
+                    #logger.debug(f"Fetching OHLCV data for {symbol}")
+                    # Run synchronous fetch_ohlcv_df in a thread executor to avoid blocking the loop
+                    df = await loop.run_in_executor(
+                        None,
+                        lambda: self.fetch_ohlcv_df(
+                            symbol=symbol,
+                            timeframe=timeframe,
+                            window=ohlcv_window,
+                            max_retries=2,
+                            retry_delay=1
+                        ),
+                    )
+
+                    if not df.empty and len(df) >= ohlcv_window:
+                        return df
+                    return None
+                except Exception as e:
+                    logger.warning(f"Failed to fetch OHLCV data for {symbol}: {e}")
+                    return None
+
+        tasks = [fetch_symbol_ohlcv(semaphore, symbol) for symbol in symbol_list]
+        ohlcv_data = await asyncio.gather(*tasks)
+
+        valid_dataframes = [df for df in ohlcv_data if df is not None]
+
+        # Calculate failure rate
+        total_symbols = len(symbol_list)
+        failed_count = total_symbols - len(valid_dataframes)
+
+        if total_symbols > 0 and (failed_count / total_symbols) > 0.1:
+            logger.warning(
+                f"Failed to fetch OHLCV data for {failed_count} symbols out of {total_symbols} "
+                f"({(failed_count/total_symbols)*100:.1f}% failure rate)"
+            )
+
+        if valid_dataframes:
+            return pd.concat(valid_dataframes)
 
         return pd.DataFrame()
 
