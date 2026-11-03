@@ -136,14 +136,14 @@ pre-commit install
 
 ---
 
-## Key Improvements (v1.0.1)
+## Key Improvements (v2.0.0)
 
-- ✅ Migrated from Poetry to UV (faster dependency resolution)
-- ✅ Created Position Monitor service (separation of concerns)
-- ✅ Centralized constants and custom exceptions
-- ✅ Fixed infinite loops in exchange service
-- ✅ Added comprehensive Windows Server deployment guide
-- ✅ Improved error handling throughout
+- ✅ Hexagonal architecture: core, ports, adapters, services and strategies, with enforced layer import rules
+- ✅ New BingX listing-volume short strategy (replaces `listing_backrun`, now removed)
+- ✅ Lock-based app-only container and docker-compose worker selected by `STRATEGY`/`ENV`
+- ✅ Bazzite deployment guides (Cockpit + Cloudflare, Podman Compose and Quadlet)
+- ✅ Local SQLite state database
+- ✅ Migrated from Poetry to UV
 
 ---
 
