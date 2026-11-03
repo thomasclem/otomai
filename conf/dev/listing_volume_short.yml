@@ -1,0 +1,32 @@
+# Live trading on the dedicated BingX dev sub-account; export BINGX_API_KEY and BINGX_SECRET.
+strategy:
+  KIND: ListingVolumeShortStrategy
+  exchange_service:
+    KIND: BingX
+    account_label: listing-volume-dev
+  notifier_service:
+    KIND: Console
+  strategy_params:
+    state_path: data/listing_volume_short.live.sqlite
+    decision_hours: 4
+    volume_multiplier: 2.0
+    reference_listings: 30
+    min_reference_listings: 10
+    entry_delay_hours: 0
+    entry_grace_seconds: 120
+    holding_hours: 504
+    poll_seconds: 30
+    bootstrap_listings: 60
+    history_batch_size: 10
+    excluded_bases: [PAXG, XAUT]
+    prelisting_lookback_hours: 24
+  trading_params:
+    equity_trade_pct: 5
+    max_gross_exposure_pct: 30
+    max_listing_day_pct: 10
+    max_simultaneous_positions: 6
+    stop_loss_pct: 20
+    take_profit_pct: 60
+    max_spread_bps: 50
+    max_book_participation: 0.01
+    max_entry_slippage_bps: 50
