@@ -21,12 +21,6 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
 
     KIND: str
 
-    symbol: str | None = pdt.Field(
-        default=None,
-        pattern=r"^[A-Z0-9]+/USDT:USDT$",
-        description="Trading pair symbol in the format BASE/QUOTE[:EXCHANGE] (e.g., ETH/USDT:USDT)",
-        strict=True,
-    )
     exchange_service: ExchangeKind = pdt.Field(..., discriminator="KIND")
     notifier_service: NotifierKind = pdt.Field(
         default_factory=ConsoleNotifier, discriminator="KIND"
@@ -66,7 +60,8 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
         return open_positions + open_orders < max_simultaneous_positions
 
     async def open_position(self, symbol: str, side: OrderSide) -> None:
-        """Place an entry sized by `trading_params`, notify, then monitor it until closed."""
+        """Place an entry sized by `trading_params` (a `TradingParams`), notify, then monitor
+        it: an entry that does not fill within `order_timeout` seconds ends the monitoring."""
         open_date = datetime.now(UTC).isoformat()
         order = await asyncio.to_thread(
             orders.open_position, self.exchange_service, symbol, side, self.trading_params
@@ -78,7 +73,11 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
             f"⏭️ Start monitoring position opening.."
         )
         asyncio.create_task(
-            self.position_monitor.monitor_position(symbol=symbol, open_date=open_date)
+            self.position_monitor.monitor_position(
+                symbol=symbol,
+                open_date=open_date,
+                opening_timeout=self.trading_params.order_timeout,
+            )
         )
 
     @abc.abstractmethod

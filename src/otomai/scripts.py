@@ -25,11 +25,6 @@ def main(argv: list[str] | None = None):
     strategy = setting.strategy
     if args.check_config:
         logger.info(f"Configuration valid: {strategy.strategy_params.name} ({strategy.KIND})")
-        params = strategy.strategy_params
-        if hasattr(params, "state_path"):
-            logger.info(
-                f"Profile: entry_delay_hours={params.entry_delay_hours}, state_path={params.state_path}"
-            )
         return
     with strategy as runner:
         logger.info(f"Starting strategy: {runner.strategy_params.name} ({runner.KIND})")

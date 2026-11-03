@@ -4,7 +4,6 @@ from otomai.core.enums import OrderSide
 from otomai.core.utils import (
     calculate_stop_loss_price,
     calculate_take_profit_price,
-    get_date_from_ts_in_ms,
     get_ts_in_ms_from_date,
 )
 
@@ -68,14 +67,3 @@ def test_calculate_stop_loss_price_invalid_order_side():
 def test_get_ts_in_ms_from_date(date, expected_ts):
     ts = get_ts_in_ms_from_date(date)
     assert ts == expected_ts
-
-
-@pytest.mark.parametrize(
-    "timestamp_ms, expected_date",
-    [
-        (1709208000000, "2024-02-29 12:00:00"),  # Leap year date
-    ],
-)
-def test_get_date_from_ts_in_ms(timestamp_ms, expected_date):
-    date = get_date_from_ts_in_ms(timestamp_ms)
-    assert date == expected_date

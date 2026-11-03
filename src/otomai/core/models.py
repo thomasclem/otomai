@@ -67,8 +67,6 @@ class ExchangeOrder(T.TypedDict):
     timestamp: int | None
     lastTradeTimestamp: int | None
     reduceOnly: bool | None
-    stopLossPrice: float | None
-    triggerPrice: float | None
 
 
 class ExchangeFill(T.TypedDict):
@@ -100,8 +98,6 @@ class Market(T.TypedDict):
     settle: str | None
     active: bool | None
     contractSize: float | None
-    limits: dict | None
-    precision: dict | None
     launchTime: int | None  # milliseconds; None when the venue does not publish it
     tradfi: bool  # tracks a stock, commodity, FX pair or index rather than a crypto asset
 

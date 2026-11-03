@@ -46,7 +46,7 @@ are not redistributed. Skip the entire batch if it exceeds the position-slot lim
 Caps apply on admission; later price/equity changes can exceed them. Quantities round
 down to exchange precision, and exchange amount/cost limits are checked.
 
-`entry_delay_hours: 0` is the model and checked-in YAML default. The worker polls
+Entry is due at the decision, with no extra delay. The worker polls
 every 30 seconds: it needs four confirmed closed bars and a ready historical
 reference, then uses the current executable quote after portfolio/liquidity checks.
 It does not assume a fill at the fourth candle's close. Delayed data/setup beyond
@@ -104,8 +104,8 @@ on resumption. The process must stay running for timely deadline execution.
 
 ## Persistent state and live operation
 
-Each state file freezes the account label, a hash of the API key (never the
-credential) and the signal/risk rules. Incompatible restarts fail.
+Each state file freezes a hash of the API key (never the credential), which identifies
+the sub-account, and the signal/risk rules. Incompatible restarts fail.
 A SQLite exclusive transaction in a separate lock file permits one process per
 state path across macOS/Linux/Windows. Use durable local storage. Do not run
 multiple live state files against the same account: this is a local path lock,
@@ -113,10 +113,10 @@ not an exchange-wide lock. Stop the runner before copying/backing up state.
 
 Live code is implemented and mock-tested; no real BingX orders were used to validate
 it. It requires a **dedicated, one-way** USDT futures sub-account per strategy and
-environment (`account_label` is `listing-volume-dev` or `listing-volume-prod`). The
-runner checks mode, requests isolated margin and 1× leverage, and does not swallow
-setup failures. Never place manual orders or run another bot on that sub-account. Export `BINGX_API_KEY` and
-`BINGX_SECRET` through the environment, keeping credentials out of YAML.
+environment. The runner checks mode, requests isolated margin and 1× leverage, and
+does not swallow setup failures. Never place manual orders or run another bot on that
+sub-account. Export `BINGX_API_KEY` and `BINGX_SECRET` through the environment, keeping
+credentials out of YAML.
 
 
 ### Exchange as the source of truth

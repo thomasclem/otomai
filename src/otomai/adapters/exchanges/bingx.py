@@ -51,7 +51,6 @@ class BingXExchange(CcxtExchange):
             "reduceOnly": o.get("reduceOnly")
             if o.get("reduceOnly") is not None
             else info.get("reduceOnly"),
-            "triggerPrice": o.get("triggerPrice") or info.get("stopPrice"),
             "timestamp": o.get("timestamp") or info.get("time"),
         }
         result = super().normalize_order(o, symbol)

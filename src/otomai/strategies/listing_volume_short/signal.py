@@ -26,25 +26,18 @@ def in_universe(market: Market, excluded_bases: tuple[str, ...]) -> bool:
 
 
 def listing_hour(market: Market) -> int | None:
-    """Launch time floored to the UTC hour; None without a millisecond launch time.
+    """Launch time floored to the UTC hour; None when the venue publishes none.
 
     There is no first-candle fallback: truncated history must not become a fake listing.
     """
     launch = market.get("launchTime")
-    try:
-        launch = int(launch)
-    except (TypeError, ValueError):
-        return None
-    if launch < 1_000_000_000_000:  # require milliseconds, reject guessed units
-        return None
-    return launch // HOUR_MS * HOUR_MS
+    return None if launch is None else launch // HOUR_MS * HOUR_MS
 
 
-def entry_window(listing_ms: int, params: ListingVolumeStrategyParams) -> tuple[int, int, int]:
-    """(decision, scheduled entry, entry expiry) timestamps of a listing, in ms."""
+def entry_window(listing_ms: int, params: ListingVolumeStrategyParams) -> tuple[int, int]:
+    """(decision, entry expiry) timestamps of a listing, in ms: entry is due at the decision."""
     decision = listing_ms + params.decision_hours * HOUR_MS
-    scheduled = decision + params.entry_delay_hours * HOUR_MS
-    return decision, scheduled, scheduled + params.entry_grace_seconds * 1000
+    return decision, decision + params.entry_grace_seconds * 1000
 
 
 def reject_prelisting_trades(candles, listing_ms: int) -> None:
@@ -59,9 +52,7 @@ def reject_prelisting_trades(candles, listing_ms: int) -> None:
             raise ListingDataError("Contract traded before its launch hour")
 
 
-def initial_volume(
-    candles, listing_ms: int, decision_hours: int, now_ms: int, *, require_positive=True
-) -> float:
+def initial_volume(candles, listing_ms: int, decision_hours: int, now_ms: int) -> float:
     """Sum of volume x (open + close) / 2 over the exact first closed hourly bars.
 
     Missing data is never filled flat. The launch hour's first bar may be partial.
@@ -85,7 +76,7 @@ def initial_volume(
         except ValueError as exc:
             raise ListingDataError(str(exc)) from exc
         total += volume * (o + close) / 2
-    if not math.isfinite(total) or (require_positive and total <= 0):
+    if not math.isfinite(total) or total <= 0:
         raise ListingDataError("Initial volume must be positive and finite")
     return total
 

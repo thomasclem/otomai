@@ -47,7 +47,6 @@ class Listing(pdt.BaseModel):
     # signal
     reference: float | None = None
     volume_ratio: float | None = None
-    entry_due_ms: int | None = None
     entry_expiry_ms: int | None = None
     excluded_reason: str | None = None
     volume_error: str | None = None
@@ -122,7 +121,7 @@ class ListingState:
             row = self.db.execute("SELECT value FROM metadata WHERE key='identity'").fetchone()
             if row and row[0] != frozen:
                 raise RuntimeError(
-                    "State belongs to a different mode/account/rule; use a new state_path"
+                    "State belongs to a different account or rule; use a new state_path"
                 )
             with self.db:
                 self.db.execute("INSERT OR IGNORE INTO metadata VALUES ('identity', ?)", (frozen,))

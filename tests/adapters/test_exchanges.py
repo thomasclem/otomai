@@ -50,19 +50,17 @@ def test_lazy_public_session_without_credentials(kind, monkeypatch):
         monkeypatch.delenv(k, raising=False)
     client = kind()
     assert client._session is None
-    assert not client.is_authenticated()
-    assert client._session is not None
     with pytest.raises(ccxt.AuthenticationError):
         client.require_live_credentials()
+    assert client._session is not None
 
 
 def test_exchange_specific_required_credentials():
-    bitget = BitgetExchange(apiKey="test", secret="test")
-    assert not bitget.is_authenticated()
-    bingx = BingXExchange(apiKey="test", secret="test")
-    assert bingx.is_authenticated()  # BingX has no Bitget-style passphrase
+    with pytest.raises(ccxt.AuthenticationError):
+        BitgetExchange(apiKey="test", secret="test").require_live_credentials()
+    BingXExchange(apiKey="test", secret="test").require_live_credentials()  # no passphrase
     bitget = BitgetExchange(apiKey="test", secret="test", password="test")
-    assert bitget.is_authenticated()
+    bitget.require_live_credentials()
     assert "apiKey" not in bitget.model_dump() and "test" not in repr(bitget)
 
 

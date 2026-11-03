@@ -64,7 +64,6 @@ class ListingVolumeShortStrategy(Strategy):
         # Freeze all signal, execution and risk choices against silent restart drift.
         identity = p.model_dump(exclude={"state_path", "poll_seconds", "history_batch_size"})
         identity["risk"] = self.trading_params.model_dump()
-        identity["account"] = x.account_label
         identity["account_fingerprint"] = x.account_fingerprint()
         self._state = ListingState(p.state_path, identity)
         self._lifecycle = PositionLifecycle(x, self._state, self.trading_params, p.holding_hours)
@@ -107,7 +106,7 @@ class ListingVolumeShortStrategy(Strategy):
                 # The last bars can lag at the decision; after the entry window the history
                 # is final. Like the research sample, a listing without a valid first window
                 # then leaves the universe instead of blocking the next references.
-                if now > entry_window(listing.listing_ms, p)[2]:
+                if now > entry_window(listing.listing_ms, p)[1]:
                     status = "excluded" if listing.status == "observing" else listing.status
                     self._state.save(listing, now, status=status, excluded_reason=str(exc))
                 else:
@@ -127,7 +126,7 @@ class ListingVolumeShortStrategy(Strategy):
         for listing in listings:
             if listing.status not in {"observing", "qualified"}:
                 continue
-            decision, scheduled, expiry = entry_window(listing.listing_ms, p)
+            decision, expiry = entry_window(listing.listing_ms, p)
             if now > expiry:
                 self._state.save(listing, now, status="expired", reason="Entry window passed")
                 continue
@@ -141,7 +140,6 @@ class ListingVolumeShortStrategy(Strategy):
                 now,
                 status="qualified" if listing.volume > p.volume_multiplier * ref else "no_signal",
                 reference=ref,
-                entry_due_ms=scheduled,
                 entry_expiry_ms=expiry,
                 volume_ratio=listing.volume / ref,
             )
@@ -162,7 +160,8 @@ class ListingVolumeShortStrategy(Strategy):
         listings = self._state.rows()
         self._load_volumes(listings, now)
         self._classify(listings, now)
-        candidates = [r for r in listings if r.status == "qualified" and r.entry_due_ms <= now]
+        # Qualification happens at or after the decision, so qualified listings are due.
+        candidates = [r for r in listings if r.status == "qualified"]
         self._execution.admit(listings, markets, now, candidates)
         statuses = {}
         for listing in listings:

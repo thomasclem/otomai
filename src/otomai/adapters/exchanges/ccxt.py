@@ -64,25 +64,21 @@ class CcxtExchange(Exchange):
     apiKey: str | bytes | None = pdt.Field(default=None, repr=False, exclude=True)
     secret: str | bytes | None = pdt.Field(default=None, repr=False, exclude=True)
     password: str | bytes | None = pdt.Field(default=None, repr=False, exclude=True)
-    auth_object: dict | None = pdt.Field(default=None, repr=False, exclude=True)
     default_type: T.Literal["future", "swap"] = "swap"
     # Extra options of every trigger (stop/take-profit) order, e.g. the price that triggers it.
     trigger_params: T.ClassVar[dict] = {}
     _session: T.Any = pdt.PrivateAttr(default=None)
 
     def _session_config(self):
-        config = dict(self.auth_object or {})
+        config = {
+            "options": {"defaultType": self.default_type},
+            "enableRateLimit": True,
+            "timeout": 15000,
+        }
         for name, suffix in [("apiKey", "API_KEY"), ("secret", "SECRET"), ("password", "PASSWORD")]:
-            value = (
-                getattr(self, name)
-                or config.get(name)
-                or os.getenv(f"{self.KIND.upper()}_{suffix}")
-            )
+            value = getattr(self, name) or os.getenv(f"{self.KIND.upper()}_{suffix}")
             if value:
                 config[name] = value
-        config["options"] = {"defaultType": self.default_type, **config.get("options", {})}
-        config.setdefault("enableRateLimit", True)
-        config.setdefault("timeout", 15000)
         return config
 
     @property
@@ -98,9 +94,6 @@ class CcxtExchange(Exchange):
 
     def require_live_credentials(self):
         self.session.check_required_credentials()
-
-    def is_authenticated(self):
-        return bool(self.session.check_required_credentials(False))
 
     def account_fingerprint(self):
         return hashlib.sha256(str(self.session.apiKey).encode()).hexdigest()
@@ -121,8 +114,6 @@ class CcxtExchange(Exchange):
                 "settle",
                 "active",
                 "contractSize",
-                "limits",
-                "precision",
                 "launchTime",
             )
         }
@@ -216,8 +207,6 @@ class CcxtExchange(Exchange):
             "timestamp": o.get("timestamp"),
             "lastTradeTimestamp": o.get("lastTradeTimestamp"),
             "reduceOnly": flag(o.get("reduceOnly")),
-            "stopLossPrice": number(o.get("stopLossPrice"), "stop price", optional=True),
-            "triggerPrice": number(o.get("triggerPrice"), "trigger price", optional=True),
         }
 
     def open_orders(self, symbol=None) -> list[ExchangeOrder]:
@@ -304,15 +293,22 @@ class CcxtExchange(Exchange):
         stop_loss_price=None,
         client_id=None,
     ):
-        self.require_live_credentials()
-        side = side if isinstance(side, OrderSide) else OrderSide(side)
         params = self.order_params(symbol, side, trade_side, margin_mode, reduce)
-        if client_id:
-            params["clientOrderId"] = client_id
         if take_profit_price is not None:
             params["takeProfit"] = {"triggerPrice": take_profit_price, **self.trigger_params}
         if stop_loss_price is not None:
             params["stopLoss"] = {"triggerPrice": stop_loss_price, **self.trigger_params}
+        return self._submit(symbol, type, side, amount, price, params, client_id)
+
+    def create_stop_order(self, symbol, side, amount, trigger_price, client_id=None):
+        params = self.order_params(symbol, side, TradeSide.CLOSE, "isolated", True)
+        params.update(stopLossPrice=trigger_price, **self.trigger_params)
+        return self._submit(symbol, "market", side, amount, None, params, client_id)
+
+    def _submit(self, symbol, type, side: OrderSide, amount, price, params, client_id):
+        self.require_live_credentials()
+        if client_id:
+            params["clientOrderId"] = client_id
         try:
             raw = self.session.create_order(
                 symbol=symbol, type=type, side=side.value, amount=amount, price=price, params=params
@@ -320,30 +316,7 @@ class CcxtExchange(Exchange):
         except ccxt.InsufficientFunds as exc:
             raise InsufficientFunds(str(exc)) from exc
         order = self.normalize_order(raw, symbol)
-        order["side"] = (
-            side.value
-        )  # logical execution direction, independent of venue hedge encoding
-        return order
-
-    def create_stop_order(self, symbol, side, amount, trigger_price, client_id=None):
-        self.require_live_credentials()
-        side = side if isinstance(side, OrderSide) else OrderSide(side)
-        params = self.order_params(symbol, side, TradeSide.CLOSE, "isolated", True)
-        params.update(stopLossPrice=trigger_price, **self.trigger_params)
-        if client_id:
-            params["clientOrderId"] = client_id
-        order = self.normalize_order(
-            self.session.create_order(
-                symbol=symbol,
-                type="market",
-                side=side.value,
-                amount=amount,
-                price=None,
-                params=params,
-            ),
-            symbol,
-        )
-        order["side"] = side.value
+        order["side"] = side.value  # logical direction, independent of venue hedge encoding
         return order
 
     @abc.abstractmethod
@@ -363,7 +336,7 @@ class CcxtExchange(Exchange):
         retry_delay: float = RETRY_DELAY_SECONDS,
     ) -> pd.DataFrame:
         """
-        Fetch OHLCV data from Bitget and return as a DataFrame with retry logic.
+        Fetch OHLCV data and return it as a DataFrame, with retry logic.
 
         Args:
             symbol (str): The trading pair or market symbol.
@@ -381,7 +354,7 @@ class CcxtExchange(Exchange):
 
         for attempt in range(1, max_retries + 1):
             try:
-                data = self.session.fetch_ohlcv(symbol=symbol, timeframe=timeframe, limit=window)
+                data = self.candles(symbol, timeframe, limit=window)
 
                 if not data:
                     logger.warning(

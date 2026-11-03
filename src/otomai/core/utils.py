@@ -48,14 +48,6 @@ def get_ts_in_ms_from_date(date: str) -> int:
     return int(ts.timestamp() * 1000)
 
 
-def get_date_from_ts_in_ms(timestamp_ms: int) -> str:
-    """
-    Converts a Unix timestamp in milliseconds to a date string in the format "YYYY-MM-DD HH:MM:SS" (UTC).
-    """
-    ts = pd.Timestamp(timestamp_ms, unit="ms", tz="UTC")
-    return ts.strftime("%Y-%m-%d %H:%M:%S")
-
-
 def validate_ohlcv_bar(row):
     """Validate a six-field observed candle; zero volume is valid after listing."""
     if len(row) < 6:
