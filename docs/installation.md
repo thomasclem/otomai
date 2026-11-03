@@ -56,7 +56,7 @@ TELEGRAM_BOT_TOKEN=your_telegram_token
 
 ```bash
 # Run with UV
-uv run python src/otomai/scripts.py --files conf/dev/listing_backrun.yml
+uv run python src/otomai/scripts.py --files conf/dev/mrat_zscore.yml
 ```
 
 ## Migrating from Poetry

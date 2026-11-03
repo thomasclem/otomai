@@ -61,7 +61,7 @@ cd C:\nssm\win64
 
 # Install service
 .\nssm.exe install Otomai "C:\Users\YOUR_USERNAME\.local\bin\uv.exe" `
-  "run python C:\otomai\src\otomai\scripts.py --files C:\otomai\conf\prod\listing_backrun.yml"
+  "run python C:\otomai\src\otomai\scripts.py --files C:\otomai\conf\prod\mrat_zscore.yml"
 
 # Set working directory
 .\nssm.exe set Otomai AppDirectory "C:\otomai"
@@ -76,7 +76,7 @@ Même logique que le `docker-compose.yml` : source `base.env` + `${STRATEGY}/${E
 
 ```powershell
 # Définir la stratégie et l'environnement
-$STRATEGY = "listing_backrun"  # ou "mrat_zscore"
+$STRATEGY = "mrat_zscore"  # ou "listing_volume_short", "dumb_rsi"
 $ENV = "prod"                   # ou "dev", "preprod"
 
 # Sourcer les fichiers .env (depuis C:\nssm\win64)
@@ -148,7 +148,7 @@ For simpler setup without external tools:
 4. **Actions** tab:
    - New → Start a program
    - Program: `C:\Users\YOUR_USERNAME\.local\bin\uv.exe`
-   - Arguments: `run python C:\otomai\src\otomai\scripts.py --files C:\otomai\conf\prod\listing_backrun.yml`
+   - Arguments: `run python C:\otomai\src\otomai\scripts.py --files C:\otomai\conf\prod\mrat_zscore.yml`
    - Start in: `C:\otomai`
 5. **Settings** tab:
    - If task fails, restart every: 1 minute
@@ -236,7 +236,7 @@ Schedule this script weekly using Task Scheduler.
 
 1. Check logs: `C:\otomai\logs\stderr.log`
 2. Verify PATH in service configuration
-3. Test manual run: `cd C:\otomai && uv run python src/otomai/scripts.py --files conf/prod/listing_backrun.yml`
+3. Test manual run: `cd C:\otomai && uv run python src/otomai/scripts.py --files conf/prod/mrat_zscore.yml`
 
 ### Permission Issues
 

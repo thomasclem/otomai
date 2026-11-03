@@ -50,7 +50,7 @@ TELEGRAM_BOT_TOKEN=your_telegram_token
 ### 4. Run
 
 ```bash
-uv run python src/otomai/scripts.py --files conf/dev/listing_backrun.yml
+uv run python src/otomai/scripts.py --files conf/dev/mrat_zscore.yml
 ```
 
 ---
