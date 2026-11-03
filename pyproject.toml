@@ -30,6 +30,7 @@ dependencies = [
     "docker>=7.1.0",
     "pyarrow>=23.0.0",
     "matplotlib>=3.10.8",
+    "ipykernel>=7.1.0",
 ]
 
 [project.optional-dependencies]

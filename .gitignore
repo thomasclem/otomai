@@ -21,3 +21,7 @@ database/__pycache__
 
 backtest/database/*   
 backtest/utilities/database/*
+
+# Local strategy state, process locks and trading databases
+/data/
+.env.keys
