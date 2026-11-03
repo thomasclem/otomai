@@ -1,8 +1,8 @@
 #Requires -RunAsAdministrator
 
 param(
-    [ValidateSet("listing_backrun", "mrat_zscore")]
-    [string]$Strategy = "listing_backrun",
+    [ValidateSet("mrat_zscore", "dumb_rsi", "listing_volume_short")]
+    [string]$Strategy = "mrat_zscore",
     
     [ValidateSet("dev", "preprod", "prod")]
     [string]$Env = "dev",

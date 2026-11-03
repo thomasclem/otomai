@@ -1,5 +1,5 @@
-import pandera.pandas as pa
 import pandas as pd
+import pandera.pandas as pa
 
 OHLCVSchema = pa.DataFrameSchema(
     {
@@ -13,23 +13,4 @@ OHLCVSchema = pa.DataFrameSchema(
     index=pa.Index(pd.Timestamp, nullable=False, coerce=True),
     strict=True,
     coerce=True,
-)
-
-MratZscoreKpiSchema = OHLCVSchema.add_columns(
-    {
-        "filter_ma": pa.Column(float, nullable=True, coerce=True),
-        "mrat": pa.Column(float, nullable=True, coerce=True),
-        "mean_mrat": pa.Column(float, nullable=True, coerce=True),
-        "stdev_mrat": pa.Column(float, nullable=True, coerce=True),
-        "z_score_mrat": pa.Column(float, nullable=True, coerce=True),
-    }
-)
-
-ListingBackrunKpiSchema = OHLCVSchema.add_columns(
-    {
-        "volume_usdt_btc_prop": pa.Column(float, nullable=False, coerce=True),
-        "btc_vol": pa.Column(float, nullable=False, coerce=True),
-        "vol_open_low": pa.Column(float, nullable=False, coerce=True),
-        "vol_open_high": pa.Column(float, nullable=False, coerce=True),
-    }
 )

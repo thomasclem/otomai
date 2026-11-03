@@ -1,0 +1,10 @@
+# Send only the files needed for the wheel-based image build.
+**
+!Dockerfile
+!pyproject.toml
+!uv.lock
+!README.md
+!dist/
+!dist/*.whl
+!conf/
+!conf/**

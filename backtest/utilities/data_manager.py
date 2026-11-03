@@ -47,6 +47,10 @@ class ExchangeDataManager:
             "ccxt_object": ccxt.bybit(config={"enableRateLimit": True}),
             "limit_size_request": 1000,
         },
+        "bingx": {
+            "ccxt_object": ccxt.bingx(config={"enableRateLimit": True}),
+            "limit_size_request": 1000,
+        },
     }
 
     # Liste des intervalles à supporter

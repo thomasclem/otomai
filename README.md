@@ -50,16 +50,36 @@ TELEGRAM_BOT_TOKEN=your_telegram_token
 ### 4. Run
 
 ```bash
-uv run python src/otomai/scripts.py --files conf/dev/listing_backrun.yml
+uv run python src/otomai/scripts.py --files conf/dev/mrat_zscore.yml
 ```
 
 ---
 
 ## Documentation
 
+### BingX listing-volume short
+
+The strategy trades live on a dedicated BingX sub-account. Export `BINGX_API_KEY` and
+`BINGX_SECRET` for that sub-account, then:
+
+```bash
+uv run otomai --files conf/dev/listing_volume_short.yml --check-config
+uv run otomai --files conf/dev/listing_volume_short.yml
+```
+
+It shorts high-volume new BingX listings on the first eligible quote after four
+closed hourly bars, with a 20% stop, 60% target and 21-day time exit. There is no
+additional one-hour wait; the default entry grace is 120 seconds.
+Defaults allocate 5% of current equity as notional, with 30% gross and 10% listing-day
+admission caps. Positions and orders are read from BingX; listing history and entry
+intents survive restarts in SQLite. See the
+[strategy and operations guide](docs/strategies/listing_volume_short.md).
+
 📚 **[Full Documentation](docs/README.md)**
 
 - **[Installation Guide](docs/installation.md)** - Detailed setup instructions
+- **[Fresh Bazzite Server Setup](docs/deployment/bazzite_cockpit_cloudflare.md)** - Recreate Cockpit, Podman and Cloudflare access
+- **[Bazzite / Podman Deployment](docs/deployment/linux_bazzite_podman.md)** - Run through Cockpit with persistent state
 - **[Windows Server Deployment](docs/deployment/windows_server.md)** - Run as Windows Service
 - **[Architecture Overview](docs/architecture/overview.md)** - System design
 - **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
@@ -76,12 +96,12 @@ uv run python src/otomai/scripts.py --files conf/dev/listing_backrun.yml
 │   └── prod/                # Production configs
 ├── docs/                    # Documentation
 ├── src/otomai/
-│   ├── core/               # Core components and shared logic
-│   │   ├── constants.py    # Centralized constants
-│   │   ├── exceptions.py   # Custom exceptions
-│   │   └── utils.py        # Utility functions
-│   ├── services/           # Services (exchange, database, notifier, position monitor)
-│   └── strategies/         # Trading strategies
+│   ├── core/               # Domain: models, shared params, sizing, indicators (no I/O)
+│   ├── ports/              # Interfaces: Exchange, Notifier, Database
+│   ├── adapters/           # Implementations: exchanges (CCXT, Bitget, BingX), notifiers, databases, scrapers
+│   ├── services/           # Shared application logic: order placement, position monitor
+│   ├── strategies/         # One module or package per strategy, with its own params
+│   └── settings.py         # Composition: YAML -> strategy and its adapters
 ├── tests/                  # Test suite
 ├── pyproject.toml          # UV/Python project configuration
 └── uv.lock                # UV lockfile

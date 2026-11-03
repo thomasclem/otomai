@@ -7,19 +7,17 @@ Welcome to the Otomai trading bot documentation.
 - [Installation Guide](installation.md)
 - [Architecture Overview](architecture/overview.md)
 - [Configuration Guide](architecture/configuration.md)
+- [Fresh Bazzite Server Setup](deployment/bazzite_cockpit_cloudflare.md)
+- [Bazzite / Podman Deployment](deployment/linux_bazzite_podman.md)
 - [Windows Server Deployment](deployment/windows_server.md)
 
 ## Services
 
-- [Exchange Service](services/exchange.md)
-- [Database Service](services/database.md)
-- [Notifier Service](services/notifier.md)
 - [Position Monitor Service](services/position_monitor.md)
 
 ## Strategies
 
-- [Strategy Framework](strategies/overview.md)
-- [Listing Backrun Strategy](strategies/listing_backrun.md)
+- [Listing-Volume Short](strategies/listing_volume_short.md)
 
 ## Development
 

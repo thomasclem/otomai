@@ -51,7 +51,7 @@ uv sync --reinstall
 **Solution**:
 1. Validate YAML syntax
 2. Check required fields match schema
-3. Review `conf/dev/listing_backrun.yml` example
+3. Review `conf/dev/mrat_zscore.yml` example
 
 ## Windows Service Issues
 
@@ -62,7 +62,7 @@ type C:\otomai\logs\stderr.log
 
 # Test manual run
 cd C:\otomai
-uv run python src/otomai/scripts.py --files conf/prod/listing_backrun.yml
+uv run python src/otomai/scripts.py --files conf/prod/mrat_zscore.yml
 ```
 
 **Service Crashes**:

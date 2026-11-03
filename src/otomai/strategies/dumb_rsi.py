@@ -1,30 +1,45 @@
 import asyncio
-import ta
 import typing as T
-from datetime import datetime, timezone
 
 import pandas as pd
+import ta
+from pydantic import Field
 
-from otomai.strategies.base import Strategy
-from otomai.core.parameters import DumbRSIStrategyParams, TradingParams
 from otomai.core.enums import OrderSide
+from otomai.core.parameters import StrategyParams, TradingParams
 from otomai.logger import Logger
+from otomai.strategies.base import Strategy
 
 logger = Logger(__name__)
 
 SCAN_INTERVAL_SECONDS = 60
+
+# %% PARAMS
+
+
+class DumbRSIStrategyParams(StrategyParams):
+    name: str = Field(default="dumb_rsi", description="Strategy name")
+    ohlcv_window: int = Field(default=1, description="Depth for OHLCV data")
+    rsi_window: int = Field(default=14, description="RSI window")
+    rsi_overbought_threshold: int = Field(default=70, description="RSI overbought threshold")
+    rsi_oversold_threshold: int = Field(default=30, description="RSI oversold threshold")
+    rsi_timeframe: T.Literal["1m", "5m", "15m", "30m", "1h", "4h"] = Field(
+        default="1h", description="Timeframe for the RSI data"
+    )
+
+
+# %% STRATEGY
 
 
 class DumbRSIStrategy(Strategy):
     KIND: T.Literal["DumbRSIStrategy"] = "DumbRSIStrategy"
 
     strategy_params: DumbRSIStrategyParams
+    trading_params: TradingParams
 
     # --- DATA ---
 
-    async def _fetch_data(
-        self, ohlcv_tf: str, ohlcv_window: int
-    ) -> pd.DataFrame:
+    async def _fetch_data(self, ohlcv_tf: str, ohlcv_window: int) -> pd.DataFrame:
         """
         Fetch OHLCV data for all symbols and compute RSI.
         Returns one row per symbol (the latest candle).
@@ -59,10 +74,7 @@ class DumbRSIStrategy(Strategy):
         return OrderSide.NONE
 
     def _find_candidates(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Find all candidate symbols with an active signal, sorted by signal strength.
-        For SELL: lowest RSI first. For BUY: highest RSI first.
-        """
+        """The single symbol with the lowest RSI among those with a signal."""
         df = df.dropna(subset=["rsi"]).copy()
         df["signal"] = df.apply(
             lambda row: self._check_signal(
@@ -72,55 +84,20 @@ class DumbRSIStrategy(Strategy):
             ),
             axis=1,
         )
-        candidates = df[df["signal"] != OrderSide.NONE].copy()
-        # Sort: oversold (SELL) by lowest RSI first, overbought (BUY) by highest RSI first
-        candidates = candidates.sort_values(by="rsi", ascending=True)
-        logger.info(f"Df sample: {df.sort_values(by="rsi", ascending=True).head(5)}")
+        candidates = df[df["signal"] != OrderSide.NONE].sort_values(by="rsi", ascending=True)
+        logger.info(f"Df sample: {df.sort_values(by='rsi', ascending=True).head(5)}")
         return candidates.iloc[:1]
 
     # --- ORDER PROCESSING ---
 
-    async def _process_signal(
-        self, symbol: str, signal: OrderSide, trading_params: TradingParams
-    ):
-        """
-        Open an order if the signal is in allowed_order_sides, then monitor the position.
-        """
+    async def _process_signal(self, symbol: str, signal: OrderSide, trading_params: TradingParams):
+        """Open a position if the signal side is allowed; the base class monitors it."""
         if signal == OrderSide.NONE:
             return
         if str(signal.value) not in trading_params.allowed_order_sides:
             logger.info(f"Signal {signal.value} for {symbol} not in allowed_order_sides, skipping.")
             return
-
-        open_date_str = str(datetime.now(timezone.utc))
-        order = self.exchange_service.open_future_order(
-            symbol=symbol,
-            equity_trade_pct=trading_params.equity_trade_pct,
-            order_type=trading_params.order_type,
-            order_side=signal,
-            margin_mode=trading_params.margin_mode,
-            leverage=trading_params.leverage,
-            take_profit_pct=trading_params.take_profit_pct,
-            stop_loss_pct=trading_params.stop_loss_pct,
-            safety_margin=trading_params.safety_margin,
-            max_retries=trading_params.max_retries,
-        )
-
-        await self.notifier_service.send_message(
-            message=(
-                f"### {self.strategy_params.name} ###\n\n"
-                f"✅ Order successfully posted for {symbol}.\n\n"
-                f"ℹ️ Order info: {order}.\n\n"
-                f"⏭️ Start monitoring position opening.."
-            )
-        )
-
-        asyncio.create_task(
-            self.position_monitor.monitor_position(
-                symbol=symbol,
-                open_date=open_date_str,
-            )
-        )
+        await self.open_position(symbol, signal)
 
     async def _process_candidate_symbol(
         self,
@@ -144,9 +121,7 @@ class DumbRSIStrategy(Strategy):
             )
         )
 
-        await self._process_signal(
-            symbol=symbol, signal=signal, trading_params=trading_params
-        )
+        await self._process_signal(symbol=symbol, signal=signal, trading_params=trading_params)
 
     # --- RUN LOOP ---
 
@@ -177,7 +152,9 @@ class DumbRSIStrategy(Strategy):
                         if not self.position_opening_available(
                             self.trading_params.max_simultaneous_positions
                         ):
-                            logger.info("Max simultaneous positions reached, stopping candidate processing.")
+                            logger.info(
+                                "Max simultaneous positions reached, stopping candidate processing."
+                            )
                             break
 
                         asyncio.create_task(

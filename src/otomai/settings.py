@@ -5,7 +5,6 @@ import pydantic_settings as pdts
 
 from otomai import strategies
 
-
 # %% SETTINGS
 
 
