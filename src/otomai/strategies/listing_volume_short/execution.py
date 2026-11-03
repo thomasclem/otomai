@@ -125,7 +125,6 @@ class EntryExecution:
             client_id=client_id,
             amount=amount,
             notional=actual,
-            entry_ms=submitted,
             quote=bid,
             submitted_ms=submitted,
         )

@@ -21,7 +21,6 @@ from otomai.core.models import (
 
 class Exchange(abc.ABC, pdt.BaseModel):
     KIND: str
-    account_label: str = "default"
 
     # %% ACCOUNT
 

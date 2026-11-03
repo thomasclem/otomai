@@ -3,16 +3,14 @@ strategy:
   KIND: ListingVolumeShortStrategy
   exchange_service:
     KIND: BingX
-    account_label: listing-volume-prod
   notifier_service:
-    KIND: Console
+    KIND: Telegram
   strategy_params:
     state_path: /app/data/listing_volume_short.live.sqlite
     decision_hours: 4
     volume_multiplier: 2.0
     reference_listings: 30
     min_reference_listings: 10
-    entry_delay_hours: 0
     entry_grace_seconds: 120
     holding_hours: 504
     poll_seconds: 30

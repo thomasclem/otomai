@@ -121,7 +121,7 @@ summaries, and that state survives a planned stop/start.
 | Credentials | `env/base.env`, then `env/${STRATEGY}/${ENV}.env` |
 | Container selector | The chosen `STRATEGY` is passed into the worker |
 | Environment directory | `/app/env`, selected by `OTOMAI_ENV_DIR`; injected process values win |
-| Entry timing | Four closed hours, `entry_delay_hours: 0`, then current quote within 120 seconds |
+| Entry timing | Four closed hours, then the current quote within 120 seconds |
 | Persistent data | Host `./data` is mounted at `/app/data` |
 | Listing state | `/app/data/listing_volume_short.live.sqlite` |
 | Restart | `unless-stopped` for process exits |

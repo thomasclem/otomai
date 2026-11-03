@@ -13,7 +13,6 @@ class ListingVolumeStrategyParams(StrategyParams):
     volume_multiplier: float = Field(default=2.0, gt=0)
     reference_listings: int = Field(default=30, ge=10, le=100)
     min_reference_listings: int = Field(default=10, ge=1)
-    entry_delay_hours: int = Field(default=0, ge=0, le=24)
     entry_grace_seconds: int = Field(default=120, ge=1, le=600)
     holding_hours: int = Field(default=504, ge=1)
     poll_seconds: float = Field(default=30, ge=1)

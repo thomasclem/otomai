@@ -29,7 +29,7 @@ from otomai.strategies.listing_volume_short.signal import (
 from otomai.strategies.listing_volume_short.state import Listing, ListingState
 
 L = int(datetime(2030, 1, 31, tzinfo=UTC).timestamp() * 1000)
-NOW = L + 5 * HOUR_MS
+NOW = L + 4 * HOUR_MS  # the decision of the SYMBOL listing
 SYMBOL = "NEW/USDT:USDT"
 
 
@@ -217,8 +217,6 @@ def runner(tmp_path):
         p = {
             "state_path": str(path or tmp_path / "state.sqlite"),
             "history_batch_size": 100,
-            # Retain coverage of the old optional delay; new immediate-entry tests override it.
-            "entry_delay_hours": 1,
             **params,
         }
         bot = ListingVolumeShortStrategy(
@@ -267,7 +265,6 @@ def test_unclosed_and_zero_volume_are_not_signals():
         initial_volume(bars(), L, 4, L + 3 * HOUR_MS)
     with pytest.raises(ValueError):
         initial_volume(bars(volume=0), L, 4, NOW)
-    assert initial_volume(bars(volume=0)[:1], L, 1, NOW, require_positive=False) == 0
 
 
 def test_reference_excludes_simultaneous_future_and_missing_member():
@@ -307,7 +304,7 @@ def test_state_single_owner_and_frozen_identity(tmp_path):
     with pytest.raises(RuntimeError, match="Another runner"):
         ListingState(path, {"account": "a"})
     state.close()
-    with pytest.raises(RuntimeError, match="different mode"):
+    with pytest.raises(RuntimeError, match="different account or rule"):
         ListingState(path, {"account": "b"})
     state = ListingState(path, {"account": "a"})
     state.close()
@@ -402,7 +399,7 @@ def test_transient_failure_keeps_blocking_reference(runner, monkeypatch):
 )
 def test_bad_own_window_retries_within_entry_window_then_excluded(runner, candles):
     decision = L + 4 * HOUR_MS
-    bot, v = runner(entry_delay_hours=0)
+    bot, v = runner()
     v.candles[SYMBOL] = candles
     bot.cycle(decision)
     row = current(bot)
@@ -672,8 +669,7 @@ def test_partial_bootstrap_stop_protects_only_remaining_position(runner):
     assert {o["amount"] for o in v.open_orders} == {original_amount / 2}  # protects the remainder
 
 
-def test_immediate_entry_is_the_model_and_yaml_default():
-    assert ListingVolumeStrategyParams().entry_delay_hours == 0
+def test_checked_in_yaml_uses_the_live_state_file():
     root = Path(__file__).parents[2]
     for env in ["dev", "prod"]:
         s = MainSettings.model_validate(
@@ -681,13 +677,12 @@ def test_immediate_entry_is_the_model_and_yaml_default():
                 configs.parse_file(str(root / "conf" / env / "listing_volume_short.yml"))
             )
         ).strategy
-        assert s.strategy_params.entry_delay_hours == 0
         assert s.strategy_params.state_path.endswith("listing_volume_short.live.sqlite")
 
 
-def test_zero_delay_waits_for_four_closed_candles_and_uses_current_quote(runner):
+def test_entry_waits_for_four_closed_candles_and_uses_current_quote(runner):
     decision = L + 4 * HOUR_MS
-    bot, venue = runner(entry_delay_hours=0)
+    bot, venue = runner()
     venue.bid, venue.ask = 87.0, 87.1
     bot.cycle(decision - 1)
     assert current(bot).status == "observing"
@@ -699,22 +694,22 @@ def test_zero_delay_waits_for_four_closed_candles_and_uses_current_quote(runner)
     assert [w[0] for w in venue.writes] == ["entry"]
 
 
-def test_zero_delay_rejects_entry_that_expires_during_requests(runner, monkeypatch):
+def test_entry_rejects_entry_that_expires_during_requests(runner, monkeypatch):
     from otomai.strategies.listing_volume_short import execution
 
     decision = L + 4 * HOUR_MS
-    bot, venue = runner(entry_delay_hours=0)
+    bot, venue = runner()
     monkeypatch.setattr(execution.time, "time", lambda: (decision + 121000) / 1000)
     bot.cycle(decision)
     assert current(bot).status == "skipped"
     assert not venue.writes
 
 
-def test_zero_delay_deadline_uses_actual_fill_time(runner, monkeypatch):
+def test_entry_deadline_uses_actual_fill_time(runner, monkeypatch):
     from otomai.strategies.listing_volume_short import execution
 
     decision = L + 4 * HOUR_MS
-    bot, v = runner(entry_delay_hours=0)
+    bot, v = runner()
     monkeypatch.setattr(execution.time, "time", lambda: (decision + 15000) / 1000)
     bot.cycle(decision)
     assert current(bot).submitted_ms == decision + 15000
@@ -724,21 +719,21 @@ def test_zero_delay_deadline_uses_actual_fill_time(runner, monkeypatch):
 
 
 @pytest.mark.parametrize("offset,expected", [(120000, "entry_pending"), (120001, "expired")])
-def test_zero_delay_grace_boundary(runner, offset, expected):
-    bot, _ = runner(entry_delay_hours=0)
+def test_entry_grace_boundary(runner, offset, expected):
+    bot, _ = runner()
     bot.cycle(L + 4 * HOUR_MS + offset)
     assert current(bot).status == expected
 
 
-def test_delay_change_does_not_silently_reuse_an_old_open_portfolio(runner):
-    bot, venue = runner(entry_delay_hours=1)
+def test_rule_change_does_not_silently_reuse_an_old_open_portfolio(runner):
+    bot, venue = runner()
     bot.cycle(NOW)
     path = bot.strategy_params.state_path
     assert current(bot).status == "entry_pending"
     bot.__exit__()
-    with pytest.raises(RuntimeError, match="different mode/account/rule"):
-        runner(entry_delay_hours=0, venue=venue, path=path)
-    resumed, _ = runner(entry_delay_hours=1, venue=venue, path=path)
+    with pytest.raises(RuntimeError, match="different account or rule"):
+        runner(volume_multiplier=3.0, venue=venue, path=path)
+    resumed, _ = runner(venue=venue, path=path)
     assert current(resumed).status == "entry_pending"
 
 
