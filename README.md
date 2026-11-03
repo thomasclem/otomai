@@ -136,7 +136,14 @@ pre-commit install
 
 ---
 
-## Key Improvements (v2.0.0)
+## Key Improvements (v2.0.1)
+
+- ✅ Listing-volume short: the API key alone identifies the sub-account (no `account_label`); entry is due at the decision (no `entry_delay_hours`)
+- ✅ `order_timeout` from the YAML now bounds how long the position monitor waits for an entry to fill
+- ✅ One order-submission path in the CCXT adapter; stop orders translate margin rejections too
+- ✅ Dead code and the dashboard's `streamlit`/`docker` dependencies removed
+
+### v2.0.0
 
 - ✅ Hexagonal architecture: core, ports, adapters, services and strategies, with enforced layer import rules
 - ✅ New BingX listing-volume short strategy (replaces `listing_backrun`, now removed)
