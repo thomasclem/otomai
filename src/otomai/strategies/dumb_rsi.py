@@ -19,7 +19,6 @@ SCAN_INTERVAL_SECONDS = 60
 
 class DumbRSIStrategyParams(StrategyParams):
     name: str = Field(default="dumb_rsi", description="Strategy name")
-    ohlcv_window: int = Field(default=1, description="Depth for OHLCV data")
     rsi_window: int = Field(default=14, description="RSI window")
     rsi_overbought_threshold: int = Field(default=70, description="RSI overbought threshold")
     rsi_oversold_threshold: int = Field(default=30, description="RSI oversold threshold")

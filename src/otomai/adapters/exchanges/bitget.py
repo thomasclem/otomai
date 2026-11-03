@@ -60,8 +60,6 @@ class BitgetExchange(CcxtExchange):
         o = {
             **o,
             "clientOrderId": o.get("clientOrderId") or info.get("clientOid"),
-            "triggerPrice": o.get("triggerPrice")
-            or first(info, "triggerPrice", "stopLossTriggerPrice"),
             "timestamp": o.get("timestamp") or first(info, "cTime", "ctime"),
             "reduceOnly": o.get("reduceOnly")
             if o.get("reduceOnly") is not None

@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 import pandas as pd
 import pandera.pandas as pa
+import pydantic as pdt
 import ta
 from pandera.typing import DataFrame
 from pydantic import Field, model_validator
@@ -72,6 +73,10 @@ MratZscoreKpiSchema = OHLCVSchema.add_columns(
 class MratZscoreStrategy(Strategy):
     KIND: T.Literal["MratZscoreStrategy"] = "MratZscoreStrategy"
 
+    symbol: str = pdt.Field(
+        pattern=r"^[A-Z0-9]+/USDT:USDT$",
+        description="Trading pair symbol in the format BASE/QUOTE:SETTLE (e.g., ETH/USDT:USDT)",
+    )
     strategy_params: MratZscoreStrategyParams
     trading_params: TradingParams
 

@@ -12,12 +12,6 @@ class OtomaiError(Exception):
     pass
 
 
-class StrategyExecutionError(OtomaiError):
-    """Raised when a strategy fails to execute properly."""
-
-    pass
-
-
 class ExchangeConnectionError(OtomaiError):
     """Raised when there are issues connecting to or communicating with an exchange."""
 
@@ -30,20 +24,8 @@ class PositionMonitoringError(OtomaiError):
     pass
 
 
-class InvalidConfigurationError(OtomaiError):
-    """Raised when configuration validation fails."""
-
-    pass
-
-
 class OrderExecutionError(OtomaiError):
     """Raised when an order fails to execute properly."""
-
-    pass
-
-
-class DataValidationError(OtomaiError):
-    """Raised when data validation fails (e.g., empty DataFrames, invalid values)."""
 
     pass
 

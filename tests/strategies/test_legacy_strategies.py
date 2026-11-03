@@ -58,3 +58,6 @@ async def test_allowed_signals_open_and_monitor_a_position(monkeypatch, side, op
     await asyncio.sleep(0)
     assert place.call_count == opened
     assert bot._position_monitor.monitor_position.call_count == opened
+    if opened:  # the YAML order timeout bounds the wait for the entry to fill
+        kwargs = bot._position_monitor.monitor_position.call_args.kwargs
+        assert kwargs["opening_timeout"] == bot.trading_params.order_timeout

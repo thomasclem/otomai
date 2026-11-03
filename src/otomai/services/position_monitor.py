@@ -2,7 +2,6 @@
 
 import asyncio
 import time
-import typing as T
 from datetime import UTC, datetime
 
 import pydantic as pdt
@@ -23,7 +22,6 @@ logger = Logger(__name__)
 
 
 class PositionMonitor(pdt.BaseModel):
-    KIND: T.Literal["PositionMonitor"] = "PositionMonitor"
     exchange_service: Exchange
     notifier_service: Notifier
     database_service: Database
