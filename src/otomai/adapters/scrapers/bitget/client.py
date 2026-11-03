@@ -1,7 +1,6 @@
 import httpx
-from typing import List
 
-from otomai.interfaces.scraper.bitget.models import GetCurrentCandyBombsResponse
+from otomai.adapters.scrapers.bitget.models import GetCurrentCandyBombsResponse
 from otomai.logger import Logger
 
 logger = Logger(__name__)
@@ -33,19 +32,15 @@ class BitgetScraperClient:
         try:
             logger.info(f"Accessing {self.url_candy_bomb}")
             with httpx.Client() as client:
-                response = client.post(
-                    self.url_candy_bomb, json=payload, headers=self.headers
-                )
+                response = client.post(self.url_candy_bomb, json=payload, headers=self.headers)
                 data = response.json().get("data")
                 return GetCurrentCandyBombsResponse(**data)
         except Exception as e:
             logger.error(f"Fail to access {self.url_candy_bomb}: {e}")
             raise
 
-    def get_current_candy_bomb_symbols(self) -> List[str]:
-        current_candy_bombs_data: GetCurrentCandyBombsResponse = (
-            self.get_current_candy_bombs()
-        )
+    def get_current_candy_bomb_symbols(self) -> list[str]:
+        current_candy_bombs_data: GetCurrentCandyBombsResponse = self.get_current_candy_bombs()
         return [
             processing_activity.name
             for processing_activity in current_candy_bombs_data.processingActivities

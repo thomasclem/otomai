@@ -3,11 +3,12 @@ DexTools API Request Models
 File location: src/otomai/services/dextools/models/request.py
 """
 
-from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
-from enum import Enum
-from fake_useragent import UserAgent
 import random
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+from fake_useragent import UserAgent
 
 
 class ChainType(Enum):
@@ -35,9 +36,9 @@ class PairSearchRequest:
 
     query: str
     strict: bool = True
-    limit: Optional[int] = 50
+    limit: int | None = 50
 
-    def to_params(self) -> Dict[str, Any]:
+    def to_params(self) -> dict[str, Any]:
         """Convert to URL parameters"""
         params = {"query": self.query, "strict": str(self.strict).lower()}
         if self.limit:
@@ -54,7 +55,7 @@ class BaseRequest:
     rate_limit_delay: float = 1.0
     ua: UserAgent = field(default_factory=UserAgent)
 
-    def get_headers(self) -> Dict[str, str]:
+    def get_headers(self) -> dict[str, str]:
         """Get default headers for requests"""
         user_agents = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -82,7 +83,7 @@ class BaseRequest:
             "Pragma": "no-cache",
         }
 
-    def get_session_headers(self) -> Dict[str, str]:
+    def get_session_headers(self) -> dict[str, str]:
         """Get headers with session-like behavior"""
         base_headers = self.get_headers()
 
@@ -104,7 +105,7 @@ class RequestConfig:
     use_session: bool = True
     verify_ssl: bool = True
 
-    def get_request_kwargs(self) -> Dict[str, Any]:
+    def get_request_kwargs(self) -> dict[str, Any]:
         """Get complete request configuration"""
         kwargs = {
             "timeout": self.base_request.timeout,

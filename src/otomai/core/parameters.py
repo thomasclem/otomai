@@ -1,26 +1,30 @@
+"""Parameters shared by every strategy. Strategy-specific parameters live next to their strategy."""
+
 # %% IMPORTS
 
-import abc
 import typing as T
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
-from otomai.core.enums import OrderType, OrderMarginMode, OrderSide
+from otomai.core.enums import OrderMarginMode, OrderSide, OrderType
+
+# %% STRATEGY PARAMS
+
+
+class StrategyParams(BaseModel):
+    """Base class of every strategy's signal parameters."""
+
+    name: str = Field(description="Strategy name")
 
 
 # %% TRADING PARAMS
 
 
-class TradingParams(abc.ABC, BaseModel):
-    """
-    Model for trading parameters configuration.
-    """
+class TradingRiskParams(BaseModel):
+    """Shared equity allocation and position-risk configuration, in percent units."""
 
-    allowed_order_sides: T.Set[str] = Field(
-        default_factory=lambda: {OrderSide.SELL.value},
-        description="Allowed order sides to be used.",
-    )
-    leverage: int = Field(default=1, description="Leverage to be applied in trading.")
+    model_config = ConfigDict(allow_inf_nan=False, extra="forbid")
+
     stop_loss_pct: float = Field(
         default=6, description="Stop loss percentage (e.g., 6 for 6%).", ge=0, le=100
     )
@@ -30,18 +34,31 @@ class TradingParams(abc.ABC, BaseModel):
     max_simultaneous_positions: int = Field(
         default=1, description="Maximum number of simultaneous open positions."
     )
+    equity_trade_pct: float = Field(
+        default=100, description="Percentage of equity to be invested in a new trade", ge=0, le=100
+    )
+
+
+class TradingParams(TradingRiskParams):
+    """Order placement parameters of the single-order strategies."""
+
+    model_config = ConfigDict(
+        title="Trading Parameters", validate_assignment=True, allow_inf_nan=False
+    )
+
+    allowed_order_sides: set[str] = Field(
+        default_factory=lambda: {OrderSide.SELL.value},
+        description="Allowed order sides to be used.",
+    )
+    leverage: int = Field(default=1, ge=1, description="Leverage to be applied in trading.")
+    sizing_basis: T.Literal["available", "equity"] = Field(
+        default="available", description="Allocation base; available preserves legacy sizing."
+    )
     order_type: str = Field(
         default=OrderType.MARKET.value, description="Order type: Market or Limit"
     )
     margin_mode: str = Field(
-        default=OrderMarginMode.ISOLATED.value,
-        description="Order margin mode: cross or isolated",
-    )
-    equity_trade_pct: float = Field(
-        default=100,
-        description="Percentage of equity to be invested in a new trade",
-        ge=0,
-        le=100,
+        default=OrderMarginMode.ISOLATED.value, description="Order margin mode: cross or isolated"
     )
     order_timeout: int = Field(
         default=3600,
@@ -53,91 +70,4 @@ class TradingParams(abc.ABC, BaseModel):
         description="Margin to be substract the initial order amount because of slippage",
         ge=0,
     )
-    max_retries: int = Field(
-        default=1,
-        description="Max order attempts",
-        ge=0,
-    )
-
-    class Config:
-        title = "Trading Parameters"
-        description = "Settings for managing trading risk and rewards."
-        validate_assignment = True
-
-
-# %% STRATEGY PARAMS
-
-
-class MratZscoreStrategyParams(BaseModel):
-    name: str = Field(default="mrat_zscore", description="Strategy name")
-    fast_ma_length: int = Field(default=9, description="Fast moving average length.")
-    slow_ma_length: int = Field(default=51, description="Slow moving average length.")
-    filter_ma_length: int = Field(
-        default=100, description="Filter moving average length."
-    )
-    z_score_threshold_buy: float = Field(
-        default=2.5, description="Threshold of the MRAT Z score to buy."
-    )
-    z_score_threshold_sell: float = Field(
-        default=2.0, description="Threshold of the MRAT Z score to sell."
-    )
-    z_score_lookback_window: int = Field(
-        default=10, description="MRAT Z-score lookback window"
-    )
-    tp_z_score_threshold: float = Field(
-        default=2.0,
-        description="Take profit percentage if z_score threshold is overcome.",
-    )
-    timeframe: T.Literal["1m", "5m", "15m", "30m", "1h", "4h"] = Field(
-        default="1h", description="Timeframe symbol"
-    )
-
-    @model_validator(mode="before")
-    def validate_moving_average_lengths(cls, values):
-        fast_ma_length = values.get("fast_ma_length")
-        slow_ma_length = values.get("slow_ma_length")
-        filter_ma_length = values.get("filter_ma_length")
-
-        if not (fast_ma_length < slow_ma_length < filter_ma_length):
-            raise ValueError(
-                "Invalid moving average lengths: "
-                "fast_ma_length must be < slow_ma_length and slow_ma_length must be < filter_ma_length."
-            )
-        return values
-
-
-class ListingBackrunStrategyParams(BaseModel):
-    name: str = Field(default="listing_backrun", description="Strategy name")
-    ohlcv_timeframe: T.Literal["1m", "5m", "15m", "30m", "1h", "4h"] = Field(
-        default="1h", description="Timeframe for the OHLCV data"
-    )
-    ohlcv_window: int = Field(default=1, description="Depth for OHLCV data")
-    short_price_volatility_threshold: float = Field(
-        default=-20.0, description="Minimum price volatility for sell signal"
-    )
-    long_price_volatility_threshold: float = Field(
-        default=20.0, description="Minimum price volatility for buy signal"
-    )
-    short_btc_volatility_threshold: float = Field(
-        default=-0.3, description="Minimum BTC volatility for sell signal"
-    )
-    long_btc_volatility_threshold: float = Field(
-        default=0.3, description="Maximum BTC volatility for buy signal"
-    )
-    volume_usdt_btc_prop_threshold: float = Field(
-        default=0.5,
-        description="Minimum volume percentage of BTC volume for sell signal",
-    )
-
-class DumbRSIStrategyParams(BaseModel):
-    name: str = Field(default="dumb_rsi", description="Strategy name")
-    ohlcv_window: int = Field(default=1, description="Depth for OHLCV data")
-    rsi_window: int = Field(default=14, description="RSI window")
-    rsi_overbought_threshold: int = Field(default=70, description="RSI overbought threshold")
-    rsi_oversold_threshold: int = Field(default=30, description="RSI oversold threshold")
-    rsi_timeframe: T.Literal["1m", "5m", "15m", "30m", "1h", "4h"] = Field(
-        default="1h", description="Timeframe for the RSI data"
-    )
-
-
-StrategyParams = T.Union[MratZscoreStrategyParams, ListingBackrunStrategyParams, DumbRSIStrategyParams]
+    max_retries: int = Field(default=1, description="Max order attempts", ge=1)

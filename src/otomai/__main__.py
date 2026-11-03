@@ -1,4 +1,5 @@
 import sys
+
 from otomai import scripts
 
 if __name__ == "__main__":

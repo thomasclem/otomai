@@ -1,68 +1,54 @@
 # %% IMPORTS
 
 import abc
+import asyncio
 import typing as T
+from datetime import UTC, datetime
 
 import pydantic as pdt
 
-from otomai.core.parameters import TradingParams, StrategyParams
-from otomai.services import (
-    ExchangeServiceKind,
-    NotifierService,
-    DatabaseService,
-    SQLiteDB,
-)
+from otomai.adapters import ConsoleNotifier, DatabaseKind, ExchangeKind, NotifierKind, SQLiteDB
+from otomai.core.enums import OrderSide
+from otomai.core.parameters import StrategyParams, TradingRiskParams
+from otomai.services import orders
 from otomai.services.position_monitor import PositionMonitor
-
 
 # %% STRATEGY
 
 
 class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
+    """A strategy is configured from YAML; adapters are chosen by their `KIND`."""
+
     KIND: str
 
-    symbol: T.Optional[str] = pdt.Field(
+    symbol: str | None = pdt.Field(
         default=None,
         pattern=r"^[A-Z0-9]+/USDT:USDT$",
         description="Trading pair symbol in the format BASE/QUOTE[:EXCHANGE] (e.g., ETH/USDT:USDT)",
         strict=True,
     )
-    exchange_service: ExchangeServiceKind = pdt.Field(..., discriminator="KIND")
-    notifier_service: NotifierService = pdt.Field(..., discriminator="KIND")
-    database_service: DatabaseService = SQLiteDB()
-    strategy_params: StrategyParams = pdt.Field(...)
-    trading_params: TradingParams = pdt.Field(...)
+    exchange_service: ExchangeKind = pdt.Field(..., discriminator="KIND")
+    notifier_service: NotifierKind = pdt.Field(
+        default_factory=ConsoleNotifier, discriminator="KIND"
+    )
+    database_service: DatabaseKind | None = None
+    strategy_params: StrategyParams
+    trading_params: TradingRiskParams
 
-    # Position monitoring service (separation of concerns)
-    _position_monitor: T.Optional[PositionMonitor] = pdt.PrivateAttr(default=None)
+    _position_monitor: PositionMonitor | None = pdt.PrivateAttr(default=None)
 
     def __enter__(self) -> "Strategy":
-        """
-        Enter method for context manager.
-        """
-        # You can initialize resources here if needed
         return self
 
-    def __exit__(
-        self,
-        exc_type: T.Type[BaseException],
-        exc_value: BaseException,
-        traceback: T.Any,
-    ) -> None:
-        """
-        Exit method for context manager.
-        """
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
         pass
 
     @property
     def position_monitor(self) -> PositionMonitor:
-        """
-        Get or create the position monitor service.
-
-        Returns:
-            PositionMonitor instance configured for this strategy
-        """
+        """Lazily built so that strategies which never trade need no database."""
         if self._position_monitor is None:
+            if self.database_service is None:
+                self.database_service = SQLiteDB()
             self._position_monitor = PositionMonitor(
                 exchange_service=self.exchange_service,
                 notifier_service=self.notifier_service,
@@ -72,22 +58,29 @@ class Strategy(abc.ABC, pdt.BaseModel, strict=True, extra="forbid"):
         return self._position_monitor
 
     def position_opening_available(self, max_simultaneous_positions: int) -> bool:
-        """
-        Check if a new position can be opened based on current positions and orders.
-
-        Args:
-            max_simultaneous_positions: Maximum allowed simultaneous positions
-
-        Returns:
-            True if a new position can be opened, False otherwise
-        """
-        open_positions = len(self.exchange_service.session.fetch_positions())
-        open_orders = len(self.exchange_service.session.fetch_open_orders())
+        """True while open positions plus pending entry orders stay under the limit."""
+        open_positions = len(self.exchange_service.positions())
+        open_orders = sum(
+            o.get("reduceOnly") is not True for o in self.exchange_service.open_orders()
+        )
         return open_positions + open_orders < max_simultaneous_positions
+
+    async def open_position(self, symbol: str, side: OrderSide) -> None:
+        """Place an entry sized by `trading_params`, notify, then monitor it until closed."""
+        open_date = datetime.now(UTC).isoformat()
+        order = await asyncio.to_thread(
+            orders.open_position, self.exchange_service, symbol, side, self.trading_params
+        )
+        await self.notifier_service.send_message(
+            f"### {self.strategy_params.name} ###\n\n"
+            f"✅ Order successfully posted for {symbol}.\n\n"
+            f"ℹ️ Order info: {order}.\n\n"
+            f"⏭️ Start monitoring position opening.."
+        )
+        asyncio.create_task(
+            self.position_monitor.monitor_position(symbol=symbol, open_date=open_date)
+        )
 
     @abc.abstractmethod
     async def run(self) -> T.Any:
-        """
-        Abstract method to run the strategy. Must be implemented by subclasses.
-        """
-        pass
+        """Run the strategy loop."""

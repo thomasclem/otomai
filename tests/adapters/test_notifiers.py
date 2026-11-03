@@ -1,12 +1,14 @@
-import pytest
 from unittest.mock import AsyncMock, patch
-from otomai.services.notifier import TelegramNotifier
+
+import pytest
+
+from otomai.adapters.notifiers import TelegramNotifier
 
 
 @pytest.fixture
 def mock_bot():
     """Fixture to mock the telegram.Bot instance."""
-    with patch("otomai.services.notifier.telegram.Bot", autospec=True) as mock:
+    with patch("otomai.adapters.notifiers.telegram.Bot", autospec=True) as mock:
         yield mock
 
 

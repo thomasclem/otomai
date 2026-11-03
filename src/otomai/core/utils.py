@@ -1,6 +1,8 @@
 # %% IMPORTS
 
 
+import math
+
 import pandas as pd
 
 from otomai.core.enums import OrderSide
@@ -41,8 +43,9 @@ def get_ts_in_ms_from_date(date: str) -> int:
     """
     Converts a given date string into a Unix timestamp in milliseconds (UTC).
     """
-    ts = pd.Timestamp(date, tz="UTC")
-    return int(ts.timestamp()) * 1000
+    ts = pd.Timestamp(date)
+    ts = ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
+    return int(ts.timestamp() * 1000)
 
 
 def get_date_from_ts_in_ms(timestamp_ms: int) -> str:
@@ -51,3 +54,24 @@ def get_date_from_ts_in_ms(timestamp_ms: int) -> str:
     """
     ts = pd.Timestamp(timestamp_ms, unit="ms", tz="UTC")
     return ts.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def validate_ohlcv_bar(row):
+    """Validate a six-field observed candle; zero volume is valid after listing."""
+    if len(row) < 6:
+        raise ValueError("Incomplete OHLCV row")
+    o, hi, lo, close, volume = map(float, row[1:6])
+    if not all(math.isfinite(x) for x in (o, hi, lo, close, volume)):
+        raise ValueError("Non-finite OHLCV")
+    if min(o, hi, lo, close) <= 0 or volume < 0:
+        raise ValueError("Invalid price or volume")
+    if hi < max(o, lo, close) or lo > min(o, hi, close):
+        raise ValueError("Incoherent OHLC")
+    return o, hi, lo, close, volume
+
+
+def positive_number(value, name):
+    number = float(value)
+    if not math.isfinite(number) or number <= 0:
+        raise ValueError(f"Invalid {name}")
+    return number

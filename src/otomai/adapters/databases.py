@@ -1,5 +1,5 @@
+"""Trade database adapters: local SQLite and AWS DynamoDB."""
 
-import abc
 import os
 import typing as T
 
@@ -8,36 +8,17 @@ import pydantic as pdt
 from pydantic import PrivateAttr
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from otomai.logger import Logger
 from otomai.core.models import Trade, Trades
+from otomai.logger import Logger
+from otomai.ports.database import Database
 
 logger = Logger(__name__)
 
 
-class DatabaseService(abc.ABC, pdt.BaseModel):
-    KIND: str
-
-    @abc.abstractmethod
-    def insert_trade(self, trade: Trade):
-        """
-        Abstract method to insert trade to database. Must be implemented by subclasses.
-        """
-        pass
-
-    @abc.abstractmethod
-    def fetch_all_trades(self):
-        """
-        Abstract method to fetch all trades from database. Must be implemented by subclasses.
-        """
-        pass
-
-
-class DynamoDB(DatabaseService):
+class DynamoDB(Database):
     KIND: T.Literal["DynamoDB"] = "DynamoDB"
 
-    aws_access_key_id: str = pdt.Field(
-        default_factory=lambda: os.getenv("AWS_ACCESS_KEY_ID")
-    )
+    aws_access_key_id: str = pdt.Field(default_factory=lambda: os.getenv("AWS_ACCESS_KEY_ID"))
     aws_secret_access_key: str = pdt.Field(
         default_factory=lambda: os.getenv("AWS_SECRET_ACCESS_KEY")
     )
@@ -70,12 +51,12 @@ class DynamoDB(DatabaseService):
             self._table = self._dynamodb.create_table(
                 TableName=self.table_name,
                 KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}],
-                AttributeDefinitions=[{"AttributeName": "id", "AttributeType": "S"}], # Trade ID is string (UUID)
+                AttributeDefinitions=[
+                    {"AttributeName": "id", "AttributeType": "S"}
+                ],  # Trade ID is string (UUID)
                 ProvisionedThroughput={"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
             )
-            self._table.meta.client.get_waiter("table_exists").wait(
-                TableName=self.table_name
-            )
+            self._table.meta.client.get_waiter("table_exists").wait(TableName=self.table_name)
             print(f"Table {self.table_name} created successfully")
         except Exception as e:
             print(f"Error creating table: {e}")
@@ -105,11 +86,13 @@ class DynamoDB(DatabaseService):
             return Trades(trades=[])
 
 
-class SQLiteDB(DatabaseService):
+class SQLiteDB(Database):
     KIND: T.Literal["SQLiteDB"] = "SQLiteDB"
-    
-    db_url: str = pdt.Field(default_factory=lambda: os.getenv("DATABASE_URL", "sqlite:///data/otomai.db"))
-    
+
+    db_url: str = pdt.Field(
+        default_factory=lambda: os.getenv("DATABASE_URL", "sqlite:///data/otomai.db")
+    )
+
     _engine: T.Any = PrivateAttr()
 
     def __init__(self, **data):
@@ -124,7 +107,7 @@ class SQLiteDB(DatabaseService):
             directory = os.path.dirname(path)
             if directory and not os.path.exists(directory):
                 os.makedirs(directory, exist_ok=True)
-                
+
         self._engine = create_engine(self.db_url)
         self.create_tables()
 
@@ -156,3 +139,6 @@ class SQLiteDB(DatabaseService):
         except Exception as e:
             logger.error(f"Error fetching all trades: {e}")
             return Trades(trades=[])
+
+
+DatabaseKind = SQLiteDB | DynamoDB

@@ -1,9 +1,10 @@
 import os
 import typing as T
-from otomai.logger import Logger
 
 import omegaconf as oc
-from dotenv import load_dotenv
+from dotenv import dotenv_values
+
+from otomai.logger import Logger
 
 logger = Logger(__name__)
 
@@ -44,18 +45,16 @@ def to_object(config: Config, resolve: bool = True) -> object:
 
 
 def load_env():
-    """
-    Load environment variables from base and specific environment files.
-    """
+    """Merge optional environment files without overriding injected process values."""
     import pathlib
 
-    project_root = pathlib.Path(__file__).parent.parent.parent
-    base_env_path = project_root / "env" / "base.env"
-    specific_env_path = project_root / "env" / f"{os.getenv('STRATEGY', 'mrat_zscore')}" / f"{os.getenv('ENV', 'dev')}.env"
-
-    load_dotenv(dotenv_path=base_env_path)
-
-    if os.path.exists(specific_env_path):
-        load_dotenv(dotenv_path=specific_env_path, override=True)
-    else:
-        logger.error(f"{specific_env_path} do not exist.")
+    env_root = pathlib.Path(
+        os.getenv("OTOMAI_ENV_DIR", pathlib.Path(__file__).parent.parent.parent / "env")
+    )
+    base = dotenv_values(env_root / "base.env")
+    strategy = os.getenv("STRATEGY", base.get("STRATEGY") or "mrat_zscore")
+    environment = os.getenv("ENV", base.get("ENV") or "dev")
+    specific = dotenv_values(env_root / strategy / f"{environment}.env")
+    for name, value in {**base, **specific}.items():
+        if value is not None:
+            os.environ.setdefault(name, value)

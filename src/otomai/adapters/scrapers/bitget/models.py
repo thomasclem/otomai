@@ -1,6 +1,6 @@
 # %% IMPORTS
 
-from typing import List, Dict
+
 from pydantic import BaseModel
 
 # %% CANDY BOMBS
@@ -9,17 +9,17 @@ from pydantic import BaseModel
 class CandyBombActivity(BaseModel):
     activityStatus: int
     airDropTime: str
-    airDropTypeList: List[int]
+    airDropTypeList: list[int]
     bizLineLabel: str
-    coinContent: List[str]
+    coinContent: list[str]
     coinIcon: str
-    contentDTOList: List[str]
+    contentDTOList: list[str]
     countDownStatus: int
     countDownTime: str
     defaultTemplate: bool
     desc: str
     endTime: str
-    iconDtoList: List[str]
+    iconDtoList: list[str]
     id: str
     ieoTotal: int
     ieoTotalUsdt: float
@@ -40,9 +40,9 @@ class CandyBombActivity(BaseModel):
     oldUserSignUp: bool
     oldUserStatus: bool
     remind: bool
-    rewardCarousels: List[Dict]
+    rewardCarousels: list[dict]
 
 
 class GetCurrentCandyBombsResponse(BaseModel):
-    notStartedActivities: List = []
-    processingActivities: List[CandyBombActivity]
+    notStartedActivities: list = []
+    processingActivities: list[CandyBombActivity]

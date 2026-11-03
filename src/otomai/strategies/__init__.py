@@ -1,16 +1,10 @@
-import pydantic as pdt
-import typing as T
-from otomai.strategies.mrat_zscore import MratZscoreStrategy
 from otomai.strategies.dumb_rsi import DumbRSIStrategy
+from otomai.strategies.mrat_zscore import MratZscoreStrategy
 
-StrategyKind = T.Union[MratZscoreStrategy, DumbRSIStrategy]
-
-
-class Settings(pdt.BaseModel):
-    strategy: StrategyKind = pdt.Field(..., discriminator="KIND")
-
+StrategyKind = MratZscoreStrategy | DumbRSIStrategy
 
 __all__ = [
-    "MratZscoreStrategy",
     "DumbRSIStrategy",
+    "MratZscoreStrategy",
+    "StrategyKind",
 ]

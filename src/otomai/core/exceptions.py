@@ -52,3 +52,15 @@ class PositionTimeoutError(PositionMonitoringError):
     """Raised when position monitoring times out."""
 
     pass
+
+
+class OrderNotFound(OtomaiError):
+    """Raised by the exchange port when a venue has no order for a client ID."""
+
+    pass
+
+
+class InsufficientFunds(OrderExecutionError):
+    """Raised by the exchange port when the venue explicitly rejects an order for margin."""
+
+    pass

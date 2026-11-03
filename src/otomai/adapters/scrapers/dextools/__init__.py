@@ -4,11 +4,11 @@ File location: src/otomai/services/dextools/__init__.py
 """
 
 from .client import DexToolsClient
-from .models.request import ChainType, PairSearchRequest, BaseRequest
+from .models.request import BaseRequest, ChainType, PairSearchRequest
 from .models.response import (
-    PairSearchResponse,
     ApiResponse,
     ErrorResponse,
+    PairSearchResponse,
 )
 
 __all__ = [

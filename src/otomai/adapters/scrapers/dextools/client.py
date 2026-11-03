@@ -3,14 +3,15 @@ DexTools API Client - Version corrigée et optimisée
 File location: src/otomai/services/dextools/client.py
 """
 
-import requests
-from typing import Dict, Optional, Any, Union
-import time
-import random
 import json
+import random
+import time
+from typing import Any
 
-from .models.request import PairSearchRequest, BaseRequest
-from .models.response import PairSearchResponse, ApiResponse, ErrorResponse
+import requests
+
+from .models.request import BaseRequest, PairSearchRequest
+from .models.response import ApiResponse, ErrorResponse, PairSearchResponse
 
 
 class DexToolsClient:
@@ -45,7 +46,7 @@ class DexToolsClient:
         # Set default headers (utilise les headers qui fonctionnent)
         self.session.headers.update(self._working_headers)
 
-    def _get_working_headers(self) -> Dict[str, str]:
+    def _get_working_headers(self) -> dict[str, str]:
         """
         Retourne les headers qui fonctionnent pour éviter les réponses corrompues
         """
@@ -63,8 +64,8 @@ class DexToolsClient:
     def _make_request(
         self,
         endpoint: str,
-        params: Optional[Dict[str, Any]] = None,
-        timeout: Optional[float] = None,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
     ) -> ApiResponse:
         """
         Make HTTP request with error handling and retries
@@ -97,9 +98,7 @@ class DexToolsClient:
                 if attempt == 0:
                     print(f"🔍 Request: {response.url}")
                     print(f"📊 Status: {response.status_code}")
-                    print(
-                        f"📦 Content-Type: {response.headers.get('content-type', 'N/A')}"
-                    )
+                    print(f"📦 Content-Type: {response.headers.get('content-type', 'N/A')}")
 
                 # Handle successful response
                 if response.status_code == 200:
@@ -173,8 +172,8 @@ class DexToolsClient:
         )
 
     def search_pairs(
-        self, query: str, strict: bool = True, limit: Optional[int] = 50
-    ) -> Union[PairSearchResponse, ErrorResponse]:
+        self, query: str, strict: bool = True, limit: int | None = 50
+    ) -> PairSearchResponse | ErrorResponse:
         """
         Search for trading pairs
 
@@ -222,7 +221,7 @@ class DexToolsClient:
                 headers=api_response.headers,
             )
 
-    def set_custom_headers(self, headers: Dict[str, str]) -> None:
+    def set_custom_headers(self, headers: dict[str, str]) -> None:
         """
         Set custom headers for requests
 

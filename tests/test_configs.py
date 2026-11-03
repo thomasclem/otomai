@@ -1,7 +1,8 @@
 import os
 
-from otomai import configs
 from omegaconf import OmegaConf
+
+from otomai import configs
 
 
 def test_parse_file__local(tmp_path: str) -> None:
@@ -58,3 +59,26 @@ def test_to_object() -> None:
     object_ = configs.to_object(config)
     assert object_ == values, "Object should be the same!"
     assert isinstance(object_, dict), "Object should be a dict!"
+
+
+def test_environment_directory_and_injected_value_precedence(tmp_path, monkeypatch):
+    monkeypatch.setenv("OTOMAI_ENV_DIR", str(tmp_path))
+    monkeypatch.setenv("STRATEGY", "listing_volume_short")
+    monkeypatch.setenv("ENV", "prod")
+    monkeypatch.delenv("OTOMAI_TEST_SETTING", raising=False)
+    monkeypatch.setenv("OTOMAI_TEST_INJECTED", "process")
+    (tmp_path / "base.env").write_text("OTOMAI_TEST_SETTING=base\nOTOMAI_TEST_INJECTED=base\n")
+    (tmp_path / "listing_volume_short").mkdir()
+    (tmp_path / "listing_volume_short/prod.env").write_text(
+        "OTOMAI_TEST_SETTING=strategy\nOTOMAI_TEST_INJECTED=file\n"
+    )
+    configs.load_env()
+    assert os.environ["OTOMAI_TEST_SETTING"] == "strategy"
+    assert os.environ["OTOMAI_TEST_INJECTED"] == "process"
+
+
+def test_process_only_environment_needs_no_dotenv_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("OTOMAI_ENV_DIR", str(tmp_path))
+    monkeypatch.setenv("OTOMAI_TEST_INJECTED", "process")
+    configs.load_env()
+    assert os.environ["OTOMAI_TEST_INJECTED"] == "process"
