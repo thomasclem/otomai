@@ -92,7 +92,7 @@ uv build
 STRATEGY=dumb_rsi ENV=prod podman-compose up -d --build --force-recreate --no-cache app
 ```
 
-Use the configuration for the strategy you intend to run. **Do not switch the `app` service to another strategy while the listing bot owns live positions.** Recreating the container replaces its worker; it does not close positions on the exchange. Do not scale the worker or run another Compose project against the same live account.
+Each `STRATEGY`/`ENV` pair is its own Compose project: the container is named `otomai-<strategy>-<env>` (for example `otomai-listing_volume_short-prod`) and runs in the pod `pod_otomai-<strategy>-<env>`, so several bots can run side by side. Always pass the same `STRATEGY` and `ENV` to later `ps`, `logs`, `stop` or `up` commands, or they address a different project. Recreating a container replaces its worker; it does not close positions on the exchange. Do not scale the worker or run two projects against the same live account.
 
 Run `podman-compose` directly, not through `uv run`: inside `uv run` it would start with the project's Python, which does not have it. Install it once as its own isolated tool with `uv tool install podman-compose` (add `--force` to replace a copy installed with pip, which breaks when Bazzite updates its system Python). It is not a Python runtime dependency of the bot. No host Python dependencies need to be layered with `rpm-ostree` or installed through host `dnf`.
 
