@@ -82,19 +82,19 @@ The repository includes `conf/prod/listing_volume_short.yml`. It **trades live**
 
 ```bash
 uv build
-STRATEGY=listing_volume_short ENV=prod uv run podman-compose up -d --build --force-recreate --no-cache app
+STRATEGY=listing_volume_short ENV=prod podman-compose up -d --build --force-recreate --no-cache app
 ```
 
 Your old strategy command remains the same:
 
 ```bash
 uv build
-STRATEGY=dumb_rsi ENV=prod uv run podman-compose up -d --build --force-recreate --no-cache app
+STRATEGY=dumb_rsi ENV=prod podman-compose up -d --build --force-recreate --no-cache app
 ```
 
 Use the configuration for the strategy you intend to run. **Do not switch the `app` service to another strategy while the listing bot owns live positions.** Recreating the container replaces its worker; it does not close positions on the exchange. Do not scale the worker or run another Compose project against the same live account.
 
-`uv run` expects `podman-compose` to be available in your environment, as with your existing workflow. If needed, install that CLI separately with `uv tool install podman-compose`; it is not a Python runtime dependency of the bot. No host Python dependencies need to be layered with `rpm-ostree` or installed through host `dnf`.
+Run `podman-compose` directly, not through `uv run`: inside `uv run` it would start with the project's Python, which does not have it. Install it once as its own isolated tool with `uv tool install podman-compose` (add `--force` to replace a copy installed with pip, which breaks when Bazzite updates its system Python). It is not a Python runtime dependency of the bot. No host Python dependencies need to be layered with `rpm-ostree` or installed through host `dnf`.
 
 The Dockerfile installs the wheel built by `uv build`, pins Python dependencies from `uv.lock`, checks the installed dependency set, and copies `conf/` into the image. It rejects multiple wheels instead of accidentally installing an old release. Use `uv build --clear` to replace stale distribution artifacts when needed. After changing YAML, rebuild/recreate using the same commands. `.dockerignore` keeps credentials, local state and research data out of the build context. The optional [Quadlet guide](linux_bazzite_quadlet.md) remains an alternative service manager, not a prerequisite.
 
@@ -102,9 +102,9 @@ The Dockerfile installs the wheel built by `uv build`, pins Python dependencies 
 
 ```bash
 uv build --clear
-STRATEGY=listing_volume_short ENV=prod uv run podman-compose build --no-cache app
-STRATEGY=listing_volume_short ENV=prod uv run podman-compose run --rm --no-deps app --files conf/prod/listing_volume_short.yml --check-config
-STRATEGY=listing_volume_short ENV=prod uv run podman-compose up -d --force-recreate app
+STRATEGY=listing_volume_short ENV=prod podman-compose build --no-cache app
+STRATEGY=listing_volume_short ENV=prod podman-compose run --rm --no-deps app --files conf/prod/listing_volume_short.yml --check-config
+STRATEGY=listing_volume_short ENV=prod podman-compose up -d --force-recreate app
 ```
 
 `--check-config` validates settings without entering this strategy, initializing
@@ -137,8 +137,8 @@ One state path has one process owner. Rebuilding the image must preserve the hos
 In Cockpit, view containers belonging to the same rootless user. Use the terminal commands below if its UI does not expose the Compose controls you need:
 
 ```bash
-STRATEGY=listing_volume_short ENV=prod uv run podman-compose ps
-STRATEGY=listing_volume_short ENV=prod uv run podman-compose logs -f app
+STRATEGY=listing_volume_short ENV=prod podman-compose ps
+STRATEGY=listing_volume_short ENV=prod podman-compose logs -f app
 ```
 
 The first cycles can have no signals while references bootstrap. Look for **successful recent cycle summaries**, not just a running container. The worker catches cycle failures and can remain running while exchange polling fails. There is currently no external heartbeat alert or HTTP health endpoint.
@@ -191,13 +191,13 @@ Podman's `unless-stopped` boot behavior varies across versions, so test logout a
 ## 6. Stop, back up and update
 
 ```bash
-STRATEGY=listing_volume_short ENV=prod uv run podman-compose stop app
+STRATEGY=listing_volume_short ENV=prod podman-compose stop app
 
 umask 077
 backup_file="../otomai-state-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
 tar -czf "$backup_file" data conf docker-compose.yml
 
-STRATEGY=listing_volume_short ENV=prod uv run podman-compose start app
+STRATEGY=listing_volume_short ENV=prod podman-compose start app
 ```
 
 Back up credentials separately with encryption. Copy backups off the server. Stop before copying the entire SQLite data directory, including sidecars. In live operation, first plan the interruption and verify protection: stopping does not close positions, and local deadline exits do not run while stopped.

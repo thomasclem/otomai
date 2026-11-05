@@ -332,7 +332,7 @@ When management access is stable, deploy Otomai using the separate [Bazzite Comp
 
 ```bash
 uv build
-STRATEGY=listing_volume_short ENV=prod uv run podman-compose up -d --build --force-recreate --no-cache app
+STRATEGY=listing_volume_short ENV=prod podman-compose up -d --build --force-recreate --no-cache app
 ```
 
 The tunnel, Cockpit socket and trading worker each have their own restart/persistence requirements. Recreating management access does not restore a lost trading database or reconcile exchange orders.
