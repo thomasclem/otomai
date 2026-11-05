@@ -1,6 +1,10 @@
 version: "3.8"
+# One Compose project per strategy and environment: its own pod, container and image,
+# so several bots run side by side and rebuilding one never replaces another.
+name: otomai-${STRATEGY:-mrat_zscore}-${ENV:-dev}
 services:
   app:
+    container_name: otomai-${STRATEGY:-mrat_zscore}-${ENV:-dev}
     build:
       context: .
       dockerfile: Dockerfile
